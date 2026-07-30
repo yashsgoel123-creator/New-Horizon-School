@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Neon City Runner</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div id="game-container">
+
+    <!-- ================= CANVAS ================= -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- ================= MAIN MENU ================= -->
+    <section id="screen-menu" class="screen active">
+      <div class="scanlines"></div>
+      <div class="menu-panel glass">
+        <h1 class="logo">
+          <span class="logo-line1">NEON CITY</span>
+          <span class="logo-line2">RUNNER</span>
+        </h1>
+        <div class="high-score-badge">
+          BEST&nbsp;<span id="menu-high-score">0</span>
+        </div>
+
+        <div class="menu-buttons">
+          <button id="btn-play" class="neon-btn neon-btn-cyan">PLAY</button>
+          <button id="btn-howto" class="neon-btn neon-btn-purple">HOW TO PLAY</button>
+          <button id="btn-settings" class="neon-btn neon-btn-pink">SETTINGS</button>
+        </div>
+
+        <p class="menu-footer">Built for the streets of 2088</p>
+      </div>
+    </section>
+
+    <!-- ================= HOW TO PLAY ================= -->
+    <section id="screen-howto" class="screen">
+      <div class="menu-panel glass">
+        <h2 class="panel-title">HOW TO PLAY</h2>
+        <div class="howto-grid">
+          <div class="howto-item">
+            <div class="key-icon">SPACE / &#8593;</div>
+            <div>Jump over obstacles</div>
+          </div>
+          <div class="howto-item">
+            <div class="key-icon">&#8595;</div>
+            <div>Slide under obstacles</div>
+          </div>
+          <div class="howto-item">
+            <div class="key-icon">P</div>
+            <div>Pause the game</div>
+          </div>
+          <div class="howto-item">
+            <div class="key-icon">M</div>
+            <div>Mute / unmute audio</div>
+          </div>
+          <div class="howto-item">
+            <div class="key-icon">&#128142;</div>
+            <div>Collect coins for points</div>
+          </div>
+          <div class="howto-item">
+            <div class="key-icon">&#9889;</div>
+            <div>Grab power-ups: shield, magnet, speed boost</div>
+          </div>
+        </div>
+        <button class="neon-btn neon-btn-cyan back-btn">BACK</button>
+      </div>
+    </section>
+
+    <!-- ================= SETTINGS ================= -->
+    <section id="screen-settings" class="screen">
+      <div class="menu-panel glass">
+        <h2 class="panel-title">SETTINGS</h2>
+
+        <div class="setting-row">
+          <span>Sound Effects</span>
+          <button id="toggle-sound" class="toggle-btn">ON</button>
+        </div>
+        <div class="setting-row">
+          <span>Music</span>
+          <button id="toggle-music" class="toggle-btn">ON</button>
+        </div>
+        <div class="setting-row">
+          <span>Reduced Effects</span>
+          <button id="toggle-effects" class="toggle-btn">OFF</button>
+        </div>
+        <div class="setting-row">
+          <button id="btn-reset-score" class="neon-btn neon-btn-pink small-btn">RESET HIGH SCORE</button>
+        </div>
+
+        <button class="neon-btn neon-btn-cyan back-btn">BACK</button>
+      </div>
+    </section>
+
+    <!-- ================= HUD (during gameplay) ================= -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="hud-stat">
+          <span class="hud-label">SCORE</span>
+          <span id="hud-score" class="hud-value">0</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-label">COINS</span>
+          <span id="hud-coins" class="hud-value">0</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-label">BEST</span>
+          <span id="hud-best" class="hud-value">0</span>
+        </div>
+      </div>
+
+      <div class="hud-lives" id="hud-lives">
+        <span class="life-icon">&#10084;</span>
+        <span class="life-icon">&#10084;</span>
+        <span class="life-icon">&#10084;</span>
+      </div>
+
+      <div class="hud-bottom">
+        <div class="hud-speed">
+          SPD <span id="hud-speed">1.0x</span>
+        </div>
+        <div id="hud-powerup" class="hud-powerup hidden"></div>
+      </div>
+    </div>
+
+    <!-- ================= PAUSE SCREEN ================= -->
+    <section id="screen-pause" class="screen">
+      <div class="menu-panel glass">
+        <h2 class="panel-title">PAUSED</h2>
+        <div class="menu-buttons">
+          <button id="btn-resume" class="neon-btn neon-btn-cyan">RESUME</button>
+          <button id="btn-pause-restart" class="neon-btn neon-btn-purple">RESTART</button>
+          <button id="btn-pause-menu" class="neon-btn neon-btn-pink">MAIN MENU</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= GAME OVER SCREEN ================= -->
+    <section id="screen-gameover" class="screen">
+      <div class="menu-panel glass">
+        <h2 class="panel-title glitch">GAME OVER</h2>
+        <div class="gameover-stats">
+          <div class="stat-row"><span>Final Score</span><span id="go-score">0</span></div>
+          <div class="stat-row"><span>Coins Collected</span><span id="go-coins">0</span></div>
+          <div class="stat-row"><span>Best Score</span><span id="go-best">0</span></div>
+        </div>
+        <div id="go-newbest" class="new-best hidden">NEW HIGH SCORE!</div>
+        <div class="menu-buttons">
+          <button id="btn-restart" class="neon-btn neon-btn-cyan">RESTART</button>
+          <button id="btn-gameover-menu" class="neon-btn neon-btn-pink">MAIN MENU</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MOBILE TOUCH CONTROLS ================= -->
+    <div id="touch-controls" class="hidden">
+      <button id="touch-slide" class="touch-btn">&#8595;<br />SLIDE</button>
+      <button id="touch-jump" class="touch-btn">&#8593;<br />JUMP</button>
+    </div>
+
+    <!-- in-game pause/mute quick buttons -->
+    <div id="ingame-buttons" class="hidden">
+      <button id="btn-ingame-pause" class="icon-btn">&#10074;&#10074;</button>
+      <button id="btn-ingame-mute" class="icon-btn">&#128266;</button>
+    </div>
+
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
