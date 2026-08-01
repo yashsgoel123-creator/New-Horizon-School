@@ -1,173 +1,264 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Neon City Runner</title>
-<link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>New Horizon School — Muzaffarnagar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Work+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-  <div id="game-container">
+<header>
+  <div class="nav-wrap">
+    <a class="logo" href="index.html">
+      <svg class="logo-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="22" r="9" fill="#E8A33D"/>
+        <path d="M2 30C8 24 14 24 20 27C26 30 32 30 38 24" stroke="#FBFAF7" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      </svg>
+      New Horizon School
+    </a>
+    <nav>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="academics.html">Academics</a></li>
+        <li><a href="campus.html">Campus</a></li>
+        <li><a href="fees.html">Fees</a></li>
+        <li><a href="admissions.html">Admissions</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+    </nav>
+    <a class="nav-cta" href="contact.html">Enquire Now</a>
+    <button class="menu-toggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+  </div>
+  <div class="mobile-nav">
+    <ul>
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="academics.html">Academics</a></li>
+      <li><a href="campus.html">Campus</a></li>
+      <li><a href="fees.html">Fees</a></li>
+      <li><a href="admissions.html">Admissions</a></li>
+      <li><a href="contact.html">Contact</a></li>
+    </ul>
+    <a class="nav-cta btn btn-primary" href="contact.html">Enquire Now</a>
+  </div>
+</header>
 
-    <!-- ================= CANVAS ================= -->
-    <canvas id="game-canvas"></canvas>
-
-    <!-- ================= MAIN MENU ================= -->
-    <section id="screen-menu" class="screen active">
-      <div class="scanlines"></div>
-      <div class="menu-panel glass">
-        <h1 class="logo">
-          <span class="logo-line1">NEON CITY</span>
-          <span class="logo-line2">RUNNER</span>
-        </h1>
-        <div class="high-score-badge">
-          BEST&nbsp;<span id="menu-high-score">0</span>
-        </div>
-
-        <div class="menu-buttons">
-          <button id="btn-play" class="neon-btn neon-btn-cyan">PLAY</button>
-          <button id="btn-howto" class="neon-btn neon-btn-purple">HOW TO PLAY</button>
-          <button id="btn-settings" class="neon-btn neon-btn-pink">SETTINGS</button>
-        </div>
-
-        <p class="menu-footer">Built for the streets of 2088</p>
-      </div>
-    </section>
-
-    <!-- ================= HOW TO PLAY ================= -->
-    <section id="screen-howto" class="screen">
-      <div class="menu-panel glass">
-        <h2 class="panel-title">HOW TO PLAY</h2>
-        <div class="howto-grid">
-          <div class="howto-item">
-            <div class="key-icon">SPACE / &#8593;</div>
-            <div>Jump over obstacles</div>
-          </div>
-          <div class="howto-item">
-            <div class="key-icon">&#8595;</div>
-            <div>Slide under obstacles</div>
-          </div>
-          <div class="howto-item">
-            <div class="key-icon">P</div>
-            <div>Pause the game</div>
-          </div>
-          <div class="howto-item">
-            <div class="key-icon">M</div>
-            <div>Mute / unmute audio</div>
-          </div>
-          <div class="howto-item">
-            <div class="key-icon">&#128142;</div>
-            <div>Collect coins for points</div>
-          </div>
-          <div class="howto-item">
-            <div class="key-icon">&#9889;</div>
-            <div>Grab power-ups: shield, magnet, speed boost</div>
-          </div>
-        </div>
-        <button class="neon-btn neon-btn-cyan back-btn">BACK</button>
-      </div>
-    </section>
-
-    <!-- ================= SETTINGS ================= -->
-    <section id="screen-settings" class="screen">
-      <div class="menu-panel glass">
-        <h2 class="panel-title">SETTINGS</h2>
-
-        <div class="setting-row">
-          <span>Sound Effects</span>
-          <button id="toggle-sound" class="toggle-btn">ON</button>
-        </div>
-        <div class="setting-row">
-          <span>Music</span>
-          <button id="toggle-music" class="toggle-btn">ON</button>
-        </div>
-        <div class="setting-row">
-          <span>Reduced Effects</span>
-          <button id="toggle-effects" class="toggle-btn">OFF</button>
-        </div>
-        <div class="setting-row">
-          <button id="btn-reset-score" class="neon-btn neon-btn-pink small-btn">RESET HIGH SCORE</button>
-        </div>
-
-        <button class="neon-btn neon-btn-cyan back-btn">BACK</button>
-      </div>
-    </section>
-
-    <!-- ================= HUD (during gameplay) ================= -->
-    <div id="hud" class="hidden">
-      <div class="hud-top">
-        <div class="hud-stat">
-          <span class="hud-label">SCORE</span>
-          <span id="hud-score" class="hud-value">0</span>
-        </div>
-        <div class="hud-stat">
-          <span class="hud-label">COINS</span>
-          <span id="hud-coins" class="hud-value">0</span>
-        </div>
-        <div class="hud-stat">
-          <span class="hud-label">BEST</span>
-          <span id="hud-best" class="hud-value">0</span>
-        </div>
-      </div>
-
-      <div class="hud-lives" id="hud-lives">
-        <span class="life-icon">&#10084;</span>
-        <span class="life-icon">&#10084;</span>
-        <span class="life-icon">&#10084;</span>
-      </div>
-
-      <div class="hud-bottom">
-        <div class="hud-speed">
-          SPD <span id="hud-speed">1.0x</span>
-        </div>
-        <div id="hud-powerup" class="hud-powerup hidden"></div>
+<section class="hero" id="top">
+  <svg class="stars" width="100%" height="240" viewBox="0 0 1180 240" preserveAspectRatio="none">
+    <circle cx="80" cy="40" r="1.4" fill="#fff"/><circle cx="220" cy="90" r="1" fill="#fff"/>
+    <circle cx="340" cy="30" r="1.2" fill="#fff"/><circle cx="520" cy="70" r="1" fill="#fff"/>
+    <circle cx="680" cy="20" r="1.4" fill="#fff"/><circle cx="900" cy="55" r="1" fill="#fff"/>
+    <circle cx="1050" cy="35" r="1.2" fill="#fff"/><circle cx="150" cy="140" r="1" fill="#fff"/>
+  </svg>
+  <div class="hero-inner">
+    <div>
+      <span class="eyebrow hero-enter d1">CBSE Affiliated · Est. 1998 · Muzaffarnagar, U.P.</span>
+      <h1 class="hero-enter d2">Where every morning brings a <em>new horizon</em></h1>
+      <p class="lead hero-enter d3">New Horizon School blends disciplined academics with the room to wonder — smart classrooms, dedicated mentors, and a campus built for children to rise, term after term.</p>
+      <div class="hero-ctas hero-enter d4">
+        <a class="btn btn-primary" href="admissions.html">Start Admission 2026-27</a>
+        <a class="btn btn-ghost" href="campus.html">Take a Campus Tour</a>
       </div>
     </div>
-
-    <!-- ================= PAUSE SCREEN ================= -->
-    <section id="screen-pause" class="screen">
-      <div class="menu-panel glass">
-        <h2 class="panel-title">PAUSED</h2>
-        <div class="menu-buttons">
-          <button id="btn-resume" class="neon-btn neon-btn-cyan">RESUME</button>
-          <button id="btn-pause-restart" class="neon-btn neon-btn-purple">RESTART</button>
-          <button id="btn-pause-menu" class="neon-btn neon-btn-pink">MAIN MENU</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================= GAME OVER SCREEN ================= -->
-    <section id="screen-gameover" class="screen">
-      <div class="menu-panel glass">
-        <h2 class="panel-title glitch">GAME OVER</h2>
-        <div class="gameover-stats">
-          <div class="stat-row"><span>Final Score</span><span id="go-score">0</span></div>
-          <div class="stat-row"><span>Coins Collected</span><span id="go-coins">0</span></div>
-          <div class="stat-row"><span>Best Score</span><span id="go-best">0</span></div>
-        </div>
-        <div id="go-newbest" class="new-best hidden">NEW HIGH SCORE!</div>
-        <div class="menu-buttons">
-          <button id="btn-restart" class="neon-btn neon-btn-cyan">RESTART</button>
-          <button id="btn-gameover-menu" class="neon-btn neon-btn-pink">MAIN MENU</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================= MOBILE TOUCH CONTROLS ================= -->
-    <div id="touch-controls" class="hidden">
-      <button id="touch-slide" class="touch-btn">&#8595;<br />SLIDE</button>
-      <button id="touch-jump" class="touch-btn">&#8593;<br />JUMP</button>
+    <div class="hero-photo hero-enter d3">
+      <img src="https://picsum.photos/seed/nhs-hero-main/760/950" alt="Students walking through the New Horizon School courtyard in the morning">
+      <div class="cap">Main Block · Morning Assembly Courtyard</div>
     </div>
-
-    <!-- in-game pause/mute quick buttons -->
-    <div id="ingame-buttons" class="hidden">
-      <button id="btn-ingame-pause" class="icon-btn">&#10074;&#10074;</button>
-      <button id="btn-ingame-mute" class="icon-btn">&#128266;</button>
-    </div>
-
   </div>
 
-  <script src="game.js"></script>
+  <svg class="horizon-arc-bottom" viewBox="0 0 1180 90" preserveAspectRatio="none" width="100%" height="90">
+    <path d="M0 90 Q 295 10 590 55 T 1180 90 V90 H0 Z" fill="#F1EEE6"/>
+    <path d="M0 90 Q 295 10 590 55 T 1180 90" stroke="#E8A33D" stroke-width="2" fill="none" opacity="0.6"/>
+  </svg>
+
+  <div class="stat-strip">
+    <div class="container">
+      <div class="stat"><div class="num"><span data-count="2150" data-suffix="+">0</span></div><div class="label">Students on campus</div></div>
+      <div class="stat"><div class="num"><span data-count="14">0</span> acres</div><div class="label">Green, open campus</div></div>
+      <div class="stat"><div class="num">1:<span data-count="18">0</span></div><div class="label">Teacher–student ratio</div></div>
+      <div class="stat"><div class="num"><span data-count="98.6" data-decimals="1" data-suffix="%">0</span></div><div class="label">Class XII pass rate, 2025</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="about" class="alt-bg">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Why New Horizon</span>
+      <h2>An education that stretches further than the syllabus</h2>
+      <p>We hold two things equally true: children need structure to grow, and they need space to become themselves. Every timetable, classroom and playing field here is designed around that balance. <a href="about.html" style="color:var(--coral); font-weight:600; text-decoration:underline;">Read our full story →</a></p>
+    </div>
+    <div class="pillars reveal-stagger">
+      <div class="pillar">
+        <svg class="glyph" viewBox="0 0 40 40" fill="none"><rect x="4" y="10" width="32" height="24" rx="2" stroke="#D6492F" stroke-width="2"/><path d="M4 16h32" stroke="#D6492F" stroke-width="2"/><circle cx="12" cy="13" r="1.4" fill="#D6492F"/></svg>
+        <h3>CBSE curriculum, taught deeply</h3>
+        <p>Concept-first teaching from Pre-Primary to Class XII, with weekly assessment tracking so no child falls quietly behind.</p>
+      </div>
+      <div class="pillar">
+        <svg class="glyph" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="15" stroke="#D6492F" stroke-width="2"/><path d="M20 11v9l6 4" stroke="#D6492F" stroke-width="2" stroke-linecap="round"/></svg>
+        <h3>Mentors, not just teachers</h3>
+        <p>Every student is attached to a faculty mentor who tracks their academic, social and emotional progress across the year.</p>
+      </div>
+      <div class="pillar">
+        <svg class="glyph" viewBox="0 0 40 40" fill="none"><path d="M20 6l4 8 9 1-6.5 6 1.5 9-8-4.5-8 4.5 1.5-9L7 15l9-1z" stroke="#D6492F" stroke-width="2" stroke-linejoin="round"/></svg>
+        <h3>Beyond the classroom</h3>
+        <p>40+ clubs, competitive sport, robotics and the arts — because report cards were never meant to be the whole story.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="academics-preview">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">The Academic Journey</span>
+      <h2>Five stages, one rising path</h2>
+      <p>Our curriculum is sequenced so each stage builds the next — from first letters in Pre-Primary to board results in Class XII.</p>
+    </div>
+    <div class="horizon-track reveal">
+      <svg class="horizon-line-svg" viewBox="0 0 1180 90" preserveAspectRatio="none">
+        <path class="draw" d="M10 80 C 250 80, 250 55, 340 55 C 480 55, 480 40, 590 40 C 700 40, 700 22, 840 22 C 980 22, 980 8, 1170 8" stroke="#E8A33D" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      </svg>
+      <div class="stages">
+        <div class="stage-card"><span class="stage-age">AGE 3–5</span><h4>Pre-Primary</h4><p>Play-based learning and first social routines.</p></div>
+        <div class="stage-card"><span class="stage-age">CLASS I–V</span><h4>Primary</h4><p>Foundational literacy, numeracy and science.</p></div>
+        <div class="stage-card"><span class="stage-age">CLASS VI–VIII</span><h4>Middle School</h4><p>Subject specialisation and first coding labs.</p></div>
+        <div class="stage-card"><span class="stage-age">CLASS IX–X</span><h4>Secondary</h4><p>Board-aligned rigor and career counselling.</p></div>
+        <div class="stage-card"><span class="stage-age">CLASS XI–XII</span><h4>Sr. Secondary</h4><p>Science, Commerce & Humanities streams.</p></div>
+      </div>
+    </div>
+    <div style="text-align:center; margin-top:36px;">
+      <a class="btn btn-ghost" style="border-color:#DAD4C4; color:var(--indigo-dark);" href="academics.html">Explore Full Curriculum →</a>
+    </div>
+  </div>
+</section>
+
+<section class="alt-bg" id="campus-preview">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Campus & Facilities</span>
+      <h2>Built for the way children actually learn</h2>
+      <p>A 14-acre campus with dedicated blocks for the sciences, the arts, sport, and quiet reading.</p>
+    </div>
+    <div class="gallery-grid reveal-stagger">
+      <figure class="big">
+        <img src="https://picsum.photos/seed/nhs-library/760/760" alt="Students reading in the New Horizon School library">
+        <figcaption>Central Library — 22,000 titles</figcaption>
+      </figure>
+      <figure>
+        <img src="https://picsum.photos/seed/nhs-science-lab/380/360" alt="Students working in the physics laboratory">
+        <figcaption>Physics & Chemistry Labs</figcaption>
+      </figure>
+      <figure>
+        <img src="https://picsum.photos/seed/nhs-computer-lab/380/360" alt="Students in the computer and robotics lab">
+        <figcaption>Computer & Robotics Lab</figcaption>
+      </figure>
+      <figure>
+        <img src="https://picsum.photos/seed/nhs-sports-ground/380/360" alt="Students playing on the school sports ground">
+        <figcaption>Sports Ground & Athletics Track</figcaption>
+      </figure>
+      <figure>
+        <img src="https://picsum.photos/seed/nhs-art-room/380/360" alt="Students in the art and craft studio">
+        <figcaption>Art, Music & Craft Studio</figcaption>
+      </figure>
+    </div>
+    <div style="text-align:center; margin-top:36px;">
+      <a class="btn btn-ghost" style="border-color:#DAD4C4; color:var(--indigo-dark);" href="campus.html">See the Full Campus →</a>
+    </div>
+  </div>
+</section>
+
+<section id="testimonials">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">From Our Families</span>
+      <h2>What parents notice first</h2>
+    </div>
+    <div class="testi-grid reveal-stagger">
+      <div class="testi">
+        <p class="quote">"What struck us was how quickly the teachers knew our son by name — not just his, his interests too."</p>
+        <div class="who">
+          <div class="avatar"><img src="https://picsum.photos/seed/nhs-parent1/80/80" alt="Portrait of a New Horizon School parent"></div>
+          <div><div class="name">Ritu Malhotra</div><div class="role">Parent, Class IV</div></div>
+        </div>
+      </div>
+      <div class="testi">
+        <p class="quote">"The robotics lab changed how my daughter talks about science. She now asks to go in on weekends."</p>
+        <div class="who">
+          <div class="avatar"><img src="https://picsum.photos/seed/nhs-parent2/80/80" alt="Portrait of a New Horizon School parent"></div>
+          <div><div class="name">Sanjeev Tyagi</div><div class="role">Parent, Class VII</div></div>
+        </div>
+      </div>
+      <div class="testi">
+        <p class="quote">"Transparent fee structure, no surprise charges through the year. Rare, and much appreciated."</p>
+        <div class="who">
+          <div class="avatar"><img src="https://picsum.photos/seed/nhs-parent3/80/80" alt="Portrait of a New Horizon School parent"></div>
+          <div><div class="name">Anjali Chaudhary</div><div class="role">Parent, Class XI</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <div class="container">
+    <div>
+      <h3>Admissions for 2026–27 are now open</h3>
+      <p>Pre-Primary through Class XI. Seats fill quickly in the Primary and Middle sections.</p>
+    </div>
+    <a class="btn btn-primary" href="admissions.html">See Admission Process</a>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="foot-grid">
+      <div>
+        <div class="foot-logo">
+          <svg width="30" height="30" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="22" r="9" fill="#E8A33D"/><path d="M2 30C8 24 14 24 20 27C26 30 32 30 38 24" stroke="#FBFAF7" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
+          New Horizon School
+        </div>
+        <p>A CBSE-affiliated school in Muzaffarnagar, Uttar Pradesh, educating students from Pre-Primary to Class XII since 1998.</p>
+      </div>
+      <div class="foot-col">
+        <h5>Explore</h5>
+        <ul>
+          <li><a href="about.html">About Us</a></li>
+          <li><a href="academics.html">Academics</a></li>
+          <li><a href="campus.html">Campus</a></li>
+          <li><a href="fees.html">Fee Structure</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h5>Quick Links</h5>
+        <ul>
+          <li><a href="admissions.html">Admissions</a></li>
+          <li><a href="#">Parent ERP Login</a></li>
+          <li><a href="#">Academic Calendar</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h5>Connect</h5>
+        <ul>
+          <li><a href="#">Facebook</a></li>
+          <li><a href="#">Instagram</a></li>
+          <li><a href="#">YouTube</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 New Horizon School. All rights reserved.</span>
+      <span>Fictional website created for demonstration purposes.</span>
+    </div>
+  </div>
+</footer>
+
+<button class="to-top" aria-label="Back to top">↑</button>
+<script src="script.js" defer></script>
 </body>
 </html>
