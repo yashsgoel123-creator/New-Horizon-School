@@ -4,13 +4,21 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+  /* ---- Intro logo animation (home page only) ---- */
+  const intro = document.querySelector('#intro-loader');
+  if (intro) {
+    const finishIntro = () => intro.classList.add('hide');
+    setTimeout(finishIntro, 2600);
+    intro.addEventListener('click', finishIntro);
+  }
+
   /* ---- Sticky header shrink/blur on scroll ---- */
   const header = document.querySelector('header');
   const onScroll = () => {
     if (window.scrollY > 24) header.classList.add('scrolled');
     else header.classList.remove('scrolled');
 
-    const toTop = document.querySelector('.to-top');
+    const toTop = document.querySelector('.fab.to-top');
     if (toTop) {
       if (window.scrollY > 600) toTop.classList.add('show');
       else toTop.classList.remove('show');
@@ -90,9 +98,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ---- Back to top ---- */
-  const toTopBtn = document.querySelector('.to-top');
+  const toTopBtn = document.querySelector('.fab.to-top');
   if (toTopBtn) {
     toTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  }
+
+  /* ---- Gallery filters (campus.html) ---- */
+  const filters = document.querySelectorAll('.g-filter');
+  if (filters.length) {
+    const items = document.querySelectorAll('[data-g-cat]');
+    filters.forEach(f => {
+      f.addEventListener('click', () => {
+        filters.forEach(x => x.classList.remove('active'));
+        f.classList.add('active');
+        const cat = f.dataset.filter;
+        items.forEach(it => {
+          const show = (cat === 'all' || it.dataset.gCat === cat);
+          it.style.display = show ? '' : 'none';
+        });
+      });
+    });
   }
 
   /* ---- Fee tabs (fees.html) ---- */
