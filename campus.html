@@ -10,23 +10,46 @@
 </head>
 <body>
 
+<div class="topbar">
+  <div class="container">
+    <div class="tb-left">
+      <a href="tel:+918533881920">📞 +91 85338 81920 (Admissions Desk)</a>
+      <a href="mailto:admissions@newhorizonschool.example">admissions@newhorizonschool.example</a>
+      <span>Parikarma Marg,Jansath Road
+Muzaffarmagar, Uttar Pradesh</span>
+    </div>
+    <div class="tb-right">
+      <a href="#" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="none"><path d="M14 9h3V5h-3c-2 0-3.5 1.5-3.5 3.5V11H8v4h2.5v6H14v-6h2.7l.5-4H14V9z" fill="currentColor"/></svg></a>
+      <a href="#" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor"/></svg></a>
+      <a href="#" aria-label="YouTube"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="12" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M10 9.5v5l5-2.5z" fill="currentColor"/></svg></a>
+    </div>
+  </div>
+</div>
+
 <header>
   <div class="nav-wrap">
     <a class="logo" href="index.html">
-      <svg class="logo-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="20" cy="22" r="9" fill="#E8A33D"/>
-        <path d="M2 30C8 24 14 24 20 27C26 30 32 30 38 24" stroke="#FBFAF7" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-      </svg>
+      <span class="logo-img"><img src="assets/logo.png" alt="New Horizon School logo"></span>
       New Horizon School
     </a>
     <nav>
       <ul>
         <li><a href="index.html">Home</a></li>
         <li><a href="about.html">About</a></li>
-        <li><a href="academics.html">Academics</a></li>
+        <li class="has-sub">
+          <a href="academics.html">Academics ▾</a>
+          <div class="submenu">
+            <a href="academics.html#pre-primary">Pre-Primary</a>
+            <a href="academics.html#primary">Primary (I–V)</a>
+            <a href="academics.html#middle">Middle (VI–VIII)</a>
+            <a href="academics.html#secondary">Secondary (IX–X)</a>
+            <a href="academics.html#senior-secondary">Sr. Secondary (XI–XII)</a>
+          </div>
+        </li>
         <li><a href="campus.html">Campus</a></li>
         <li><a href="fees.html">Fees</a></li>
         <li><a href="admissions.html">Admissions</a></li>
+        <li><a href="gallery.html">Gallery</a></li>
         <li><a href="contact.html">Contact</a></li>
       </ul>
     </nav>
@@ -41,6 +64,7 @@
       <li><a href="campus.html">Campus</a></li>
       <li><a href="fees.html">Fees</a></li>
       <li><a href="admissions.html">Admissions</a></li>
+      <li><a href="gallery.html">Gallery</a></li>
       <li><a href="contact.html">Contact</a></li>
     </ul>
     <a class="nav-cta btn btn-primary" href="contact.html">Enquire Now</a>
@@ -65,36 +89,42 @@
 
 <section>
   <div class="container">
+    <div class="gallery-filters reveal">
+      <button class="g-filter active" data-filter="all">All</button>
+      <button class="g-filter" data-filter="academic">Academic Spaces</button>
+      <button class="g-filter" data-filter="sports">Sports & Play</button>
+      <button class="g-filter" data-filter="campus">Campus Life</button>
+    </div>
     <div class="gallery-grid reveal-stagger" style="grid-auto-rows:200px;">
-      <figure class="big">
+      <figure class="big" data-g-cat="academic">
         <img src="https://picsum.photos/seed/nhs-library/760/760" alt="Students reading in the New Horizon School library">
         <figcaption>Central Library — 22,000 titles</figcaption>
       </figure>
-      <figure>
+      <figure data-g-cat="academic">
         <img src="https://picsum.photos/seed/nhs-science-lab/380/360" alt="Students working in the physics laboratory">
         <figcaption>Physics & Chemistry Labs</figcaption>
       </figure>
-      <figure>
-        <img src="https://picsum.photos/seed/nhs-computer-lab/380/360" alt="Students in the computer and robotics lab">
-        <figcaption>Computer & Robotics Lab</figcaption>
+      <figure data-g-cat="academic">
+        <img src="https://picsum.photos/seed/nhs-computer-lab/380/360" alt="Students in the computer and computer lab">
+        <figcaption>Computer lab</figcaption>
       </figure>
-      <figure>
+      <figure data-g-cat="sports">
         <img src="https://picsum.photos/seed/nhs-sports-ground/380/360" alt="Students playing on the school sports ground">
         <figcaption>Sports Ground & Athletics Track</figcaption>
       </figure>
-      <figure>
+      <figure data-g-cat="campus">
         <img src="https://picsum.photos/seed/nhs-art-room/380/360" alt="Students in the art and craft studio">
         <figcaption>Art, Music & Craft Studio</figcaption>
       </figure>
-      <figure>
+      <figure data-g-cat="campus">
         <img src="https://picsum.photos/seed/nhs-auditorium/380/360" alt="The school auditorium during an event">
         <figcaption>500-Seat Auditorium</figcaption>
       </figure>
-      <figure>
+      <figure data-g-cat="campus">
         <img src="https://picsum.photos/seed/nhs-canteen/380/360" alt="The school canteen and dining hall">
         <figcaption>Canteen & Dining Hall</figcaption>
       </figure>
-      <figure class="big">
+      <figure class="big" data-g-cat="sports">
         <img src="https://picsum.photos/seed/nhs-playground/760/760" alt="Younger children playing on the pre-primary playground">
         <figcaption>Pre-Primary Playground</figcaption>
       </figure>
@@ -116,8 +146,8 @@
       </div>
       <div class="pillar">
         <svg class="glyph" viewBox="0 0 40 40" fill="none"><path d="M20 6l14 8v12l-14 8-14-8V14z" stroke="#D6492F" stroke-width="2" stroke-linejoin="round"/></svg>
-        <h3>3 science labs, 1 robotics lab</h3>
-        <p>Separate Physics, Chemistry and Biology labs, plus a dedicated computer and robotics workshop.</p>
+        <h3>3 science labs, 1 computer lab</h3>
+        <p>Separate Physics, Chemistry and Biology labs, plus a dedicated computer and computerworkshop.</p>
       </div>
       <div class="pillar">
         <svg class="glyph" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="14" r="6" stroke="#D6492F" stroke-width="2"/><path d="M8 34c0-7 5-12 12-12s12 5 12 12" stroke="#D6492F" stroke-width="2"/></svg>
@@ -158,7 +188,7 @@
     <div class="foot-grid">
       <div>
         <div class="foot-logo">
-          <svg width="30" height="30" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="22" r="9" fill="#E8A33D"/><path d="M2 30C8 24 14 24 20 27C26 30 32 30 38 24" stroke="#FBFAF7" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
+          <span class="logo-img"><img src="assets/logo.png" alt="New Horizon School logo"></span>
           New Horizon School
         </div>
         <p>A CBSE-affiliated school in Muzaffarnagar, Uttar Pradesh, educating students from Pre-Primary to Class XII since 1998.</p>
@@ -169,6 +199,7 @@
           <li><a href="about.html">About Us</a></li>
           <li><a href="academics.html">Academics</a></li>
           <li><a href="campus.html">Campus</a></li>
+          <li><a href="gallery.html">Gallery</a></li>
           <li><a href="fees.html">Fee Structure</a></li>
         </ul>
       </div>
@@ -197,7 +228,15 @@
   </div>
 </footer>
 
-<button class="to-top" aria-label="Back to top">↑</button>
+<div class="float-stack">
+  <a class="fab whatsapp" href="https://wa.me/918533881920" aria-label="Chat on WhatsApp" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M20 12a8 8 0 11-11.6-7.1L4 20l4.2-4.4A8 8 0 0120 12z" stroke="white" stroke-width="1.6" stroke-linejoin="round"/></svg>
+  </a>
+  <button class="fab to-top" aria-label="Back to top">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 19V5M5 12l7-7 7 7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
 <script src="script.js" defer></script>
 </body>
 </html>
