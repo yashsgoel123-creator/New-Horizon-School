@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gallery — New Horizon School</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Work+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="container">
+    <div class="tb-left">
+      <a href="tel:+918533881920">📞 +91 85338 81920 (Admissions Desk)</a>
+      <a href="mailto:admissions@newhorizonschool.example">admissions@newhorizonschool.example</a>
+      <span>Parikarma Marg,Jansath Road
+Muzaffarmagar, Uttar Pradesh</span>
+    </div>
+    <div class="tb-right">
+      <a href="#" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="none"><path d="M14 9h3V5h-3c-2 0-3.5 1.5-3.5 3.5V11H8v4h2.5v6H14v-6h2.7l.5-4H14V9z" fill="currentColor"/></svg></a>
+      <a href="#" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor"/></svg></a>
+      <a href="#" aria-label="YouTube"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="12" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M10 9.5v5l5-2.5z" fill="currentColor"/></svg></a>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="nav-wrap">
+    <a class="logo" href="index.html">
+      <span class="logo-img"><img src="assets/logo.png" alt="New Horizon School logo"></span>
+      New Horizon School
+    </a>
+    <nav>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="about.html">About</a></li>
+        <li class="has-sub">
+          <a href="academics.html">Academics ▾</a>
+          <div class="submenu">
+            <a href="academics.html#pre-primary">Pre-Primary</a>
+            <a href="academics.html#primary">Primary (I–V)</a>
+            <a href="academics.html#middle">Middle (VI–VIII)</a>
+            <a href="academics.html#secondary">Secondary (IX–X)</a>
+            <a href="academics.html#senior-secondary">Sr. Secondary (XI–XII)</a>
+          </div>
+        </li>
+        <li><a href="campus.html">Campus</a></li>
+        <li><a href="fees.html">Fees</a></li>
+        <li><a href="admissions.html">Admissions</a></li>
+        <li><a href="gallery.html">Gallery</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+    </nav>
+    <a class="nav-cta" href="contact.html">Enquire Now</a>
+    <button class="menu-toggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+  </div>
+  <div class="mobile-nav">
+    <ul>
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="academics.html">Academics</a></li>
+      <li><a href="campus.html">Campus</a></li>
+      <li><a href="fees.html">Fees</a></li>
+      <li><a href="admissions.html">Admissions</a></li>
+      <li><a href="gallery.html">Gallery</a></li>
+      <li><a href="contact.html">Contact</a></li>
+    </ul>
+    <a class="nav-cta btn btn-primary" href="contact.html">Enquire Now</a>
+  </div>
+</header>
+
+<section class="page-hero">
+  <svg class="stars" width="100%" height="240" viewBox="0 0 1180 240" preserveAspectRatio="none">
+    <circle cx="80" cy="40" r="1.4" fill="#fff"/><circle cx="340" cy="30" r="1.2" fill="#fff"/>
+    <circle cx="680" cy="20" r="1.4" fill="#fff"/><circle cx="1050" cy="35" r="1.2" fill="#fff"/>
+  </svg>
+  <div class="container">
+    <div class="breadcrumb hero-enter d1"><a href="index.html">Home</a><span>/</span><span>Gallery</span></div>
+    <span class="eyebrow hero-enter d2">Moments From New Horizon</span>
+    <h1 class="hero-enter d3">Life at school, in pictures</h1>
+    <p class="lead hero-enter d4">Classrooms, competitions, sports day and everything in between — a running look at what a year here actually looks like.</p>
+  </div>
+  <svg class="horizon-arc-bottom" viewBox="0 0 1180 60" preserveAspectRatio="none" width="100%" height="60">
+    <path d="M0 60 Q 295 5 590 35 T 1180 60 V60 H0 Z" fill="#FBFAF7"/>
+  </svg>
+</section>
+
+<section>
+  <div class="container">
+    <div class="gallery-filters reveal">
+      <button class="g-filter active" data-filter="all">All</button>
+      <button class="g-filter" data-filter="academics">Academics</button>
+      <button class="g-filter" data-filter="events">Events & Celebrations</button>
+      <button class="g-filter" data-filter="sports">Sports</button>
+      <button class="g-filter" data-filter="achievements">Achievements</button>
+    </div>
+
+    <!-- Placeholder gallery — swap each src below for the real photos when ready -->
+    <div class="gallery-grid reveal-stagger" style="grid-auto-rows:200px;">
+      <figure class="big" data-g-cat="achievements">
+        <img src="assets/award-president.png" alt="New Horizon School students honoured by the President of India">
+        <figcaption>Team Horizoners at Rashtrapati Bhavan</figcaption>
+      </figure>
+      <figure data-g-cat="academics">
+        <img src="https://picsum.photos/seed/nhs-gal-1/380/360" alt="Placeholder — classroom photo to be added">
+        <figcaption>Classroom Session</figcaption>
+      </figure>
+      <figure data-g-cat="events">
+        <img src="https://picsum.photos/seed/nhs-gal-2/380/360" alt="Placeholder — annual day photo to be added">
+        <figcaption>Annual Day</figcaption>
+      </figure>
+      <figure data-g-cat="sports">
+        <img src="https://picsum.photos/seed/nhs-gal-3/380/360" alt="Placeholder — sports day photo to be added">
+        <figcaption>Sports Day</figcaption>
+      </figure>
+      <figure data-g-cat="academics">
+        <img src="https://picsum.photos/seed/nhs-gal-4/380/360" alt="Placeholder — computer lab photo to be added">
+        <figcaption>Computer Lab</figcaption>
+      </figure>
+      <figure data-g-cat="events">
+        <img src="https://picsum.photos/seed/nhs-gal-5/380/360" alt="Placeholder — festival celebration photo to be added">
+        <figcaption>Festival Celebrations</figcaption>
+      </figure>
+      <figure data-g-cat="sports">
+        <img src="https://picsum.photos/seed/nhs-gal-6/380/360" alt="Placeholder — inter-house match photo to be added">
+        <figcaption>Inter-House Match</figcaption>
+      </figure>
+      <figure class="big" data-g-cat="achievements">
+        <img src="https://picsum.photos/seed/nhs-gal-7/760/760" alt="Placeholder — prize distribution photo to be added">
+        <figcaption>Prize Distribution</figcaption>
+      </figure>
+    </div>
+
+    <p class="reveal" style="margin-top:28px; font-size:13.5px; color:var(--slate-soft); text-align:center;">
+      More photos coming soon — this gallery will keep growing through the year.
+    </p>
+  </div>
+</section>
+
+<section class="cta-band">
+  <div class="container">
+    <div>
+      <h3>Want to see the campus behind these photos?</h3>
+      <p>Book a guided tour and walk the same corridors and grounds.</p>
+    </div>
+    <a class="btn btn-primary" href="contact.html">Book a Campus Visit</a>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="foot-grid">
+      <div>
+        <div class="foot-logo">
+          <span class="logo-img"><img src="assets/logo.png" alt="New Horizon School logo"></span>
+          New Horizon School
+        </div>
+        <p>A CBSE-affiliated school in Muzaffarnagar, Uttar Pradesh, educating students from Pre-Primary to Class XII since 1998.</p>
+      </div>
+      <div class="foot-col">
+        <h5>Explore</h5>
+        <ul>
+          <li><a href="about.html">About Us</a></li>
+          <li><a href="academics.html">Academics</a></li>
+          <li><a href="campus.html">Campus</a></li>
+          <li><a href="gallery.html">Gallery</a></li>
+          <li><a href="fees.html">Fee Structure</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h5>Quick Links</h5>
+        <ul>
+          <li><a href="admissions.html">Admissions</a></li>
+          <li><a href="#">Parent ERP Login</a></li>
+          <li><a href="#">Academic Calendar</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h5>Connect</h5>
+        <ul>
+          <li><a href="#">Facebook</a></li>
+          <li><a href="#">Instagram</a></li>
+          <li><a href="#">YouTube</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 New Horizon School. All rights reserved.</span>
+      <span>Fictional website created for demonstration purposes.</span>
+    </div>
+  </div>
+</footer>
+
+<div class="float-stack">
+  <a class="fab whatsapp" href="https://wa.me/918533881920" aria-label="Chat on WhatsApp" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M20 12a8 8 0 11-11.6-7.1L4 20l4.2-4.4A8 8 0 0120 12z" stroke="white" stroke-width="1.6" stroke-linejoin="round"/></svg>
+  </a>
+  <button class="fab to-top" aria-label="Back to top">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 19V5M5 12l7-7 7 7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<script src="script.js" defer></script>
+</body>
+</html>
