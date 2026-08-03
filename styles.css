@@ -490,8 +490,8 @@ footer{background:var(--indigo-dark); color:#C7CEDE; padding-top:70px;}
 /* ---------- HERO WITH FULL PHOTO BACKGROUND ---------- */
 .hero.has-photo-bg{
   background-image:
-    linear-gradient(120deg, rgba(9,17,36,0.92) 0%, rgba(14,25,48,0.88) 45%, rgba(35,60,104,0.82) 100%),
-    url('assets/hero-building.png');
+    linear-gradient(120deg, rgba(9, 17, 36, 0.92) 0%, rgba(14,25,48,0.88) 45%, rgba(35,60,104,0.82) 100%),
+    url('assets/hero-building.png' );
   background-size:cover;
   background-position:center;
 }
