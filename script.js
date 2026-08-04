@@ -136,15 +136,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  /* ---- Contact form submit feedback (contact.html) ---- */
+ /* ---- Contact form submit feedback (contact.html) ---- */
   const contactForm = document.querySelector('#enquiry-form');
   if (contactForm) {
     contactForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const btn = contactForm.querySelector('.submit-btn');
-      btn.textContent = 'Enquiry received ✓';
-      btn.classList.add('sent');
+      const originalText = btn.textContent;
+      btn.textContent = 'Sending...';
       btn.disabled = true;
+
+      const formData = new FormData(contactForm);
+
+      fetch(contactForm.action, {
+        method: 'POST',
+        body: formData,
+        headers: { 'Accept': 'application/json' }
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.success) {
+            btn.textContent = 'Enquiry received ✓';
+            btn.classList.add('sent');
+            contactForm.reset();
+          } else {
+            btn.textContent = 'Something went wrong. Try again';
+            btn.disabled = false;
+          }
+        })
+        .catch(() => {
+          btn.textContent = 'Something went wrong. Try again';
+          btn.disabled = false;
+        });
     });
   }
 

@@ -114,41 +114,46 @@ Muzaffarmagar, Uttar Pradesh</span>
         </div>
       </div>
 
-      <form id="enquiry-form" class="reveal">
-        <div class="form-row">
-          <div>
-            <label for="pname">Parent Name</label>
-            <input id="pname" type="text" placeholder="Full name" required>
-          </div>
-          <div>
-            <label for="phone">Phone</label>
-            <input id="phone" type="tel" placeholder="10-digit number" required>
-          </div>
-        </div>
-        <div class="form-row">
-          <div>
-            <label for="cname">Child's Name</label>
-            <input id="cname" type="text" placeholder="Full name">
-          </div>
-          <div>
-            <label for="class">Applying For</label>
-            <select id="class">
-              <option>Pre-Primary</option>
-              <option>Primary (I–V)</option>
-              <option>Middle (VI–VIII)</option>
-              <option>Secondary (IX–X)</option>
-              <option>Sr. Secondary (XI–XII)</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="full">
-            <label for="msg">Message (optional)</label>
-            <textarea id="msg" placeholder="Any questions for the admissions team?"></textarea>
-          </div>
-        </div>
-        <button class="submit-btn" type="submit">Send Enquiry</button>
-      </form>
+     <form id="enquiry-form" class="reveal" action="https://api.web3forms.com/submit" method="POST">
+  
+  <input type="hidden" name="access_key" value="b59c768d-dbff-43e7-80e6-d4ebce894762">
+  <input type="hidden" name="subject" value="New Admission Enquiry from Website">
+  <input type="hidden" name="from_name" value="School Website Enquiry Form">
+
+  <div class="form-row">
+    <div>
+      <label for="pname">Parent Name</label>
+      <input id="pname" name="parent_name" type="text" placeholder="Full name" required>
+    </div>
+    <div>
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="tel" placeholder="10-digit number" required>
+    </div>
+  </div>
+  <div class="form-row">
+    <div>
+      <label for="cname">Child's Name</label>
+      <input id="cname" name="child_name" type="text" placeholder="Full name">
+    </div>
+    <div>
+      <label for="class">Applying For</label>
+      <select id="class" name="applying_for">
+        <option>Pre-Primary</option>
+        <option>Primary (I–V)</option>
+        <option>Middle (VI–VIII)</option>
+        <option>Secondary (IX–X)</option>
+        <option>Sr. Secondary (XI–XII)</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="full">
+      <label for="msg">Message (optional)</label>
+      <textarea id="msg" name="message" placeholder="Any questions for the admissions team?"></textarea>
+    </div>
+  </div>
+  <button class="submit-btn" type="submit">Send Enquiry</button>
+</form>
     </div>
   </div>
 </section>
@@ -185,9 +190,9 @@ Muzaffarmagar, Uttar Pradesh</span>
       <div class="foot-col">
         <h5>Connect</h5>
         <ul>
-          <li><a href="#">Facebook</a></li>
-          <li><a href="#">Instagram</a></li>
-          <li><a href="#">YouTube</a></li>
+          <li><a href="https://www.facebook.com/share/1d7CabNZUM/?mibextid=wwXIfr" target="_blank" rel="noopener noreferrer">Facebook</a></li>
+          <li><a href="https://www.instagram.com/newhorizonschool_mzn/" target="_blank" rel="noopener noreferrer">Instagram</a></li>
+          <li><a href="https://youtube.com/@newhorizonschoolmuzaffarna2791?si=W-ZeYruj6EdXhcOW/" target="_blank" rel="noopener noreferrer">YouTube</a></li>
         </ul>
       </div>
     </div>

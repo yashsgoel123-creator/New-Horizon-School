@@ -124,13 +124,21 @@ nav li:hover .submenu{opacity:1; visibility:visible; transform:translateY(0);}
 .menu-toggle.open span:nth-child(3){top:17px; transform:rotate(-45deg);}
 
 .mobile-nav{
-  display:none; position:fixed; inset:64px 0 0 0; z-index:99; background:rgba(14,22,42,0.98);
+  display:none; position:fixed; inset:64px 0 0 0; z-index:99; background:linear-gradient(180deg, rgba(251,250,247,0.98), rgba(241,238,230,0.99));
   padding:30px 28px; transform:translateY(-12px); opacity:0; pointer-events:none;
   transition:opacity .25s var(--ease), transform .25s var(--ease);
 }
 .mobile-nav.open{opacity:1; transform:translateY(0); pointer-events:auto;}
-.mobile-nav ul{list-style:none; display:flex; flex-direction:column; gap:6px;}
-.mobile-nav a{display:block; color:#E7E9F2; font-size:19px; font-family:'Fraunces',serif; padding:14px 0; border-bottom:1px solid var(--indigo-line);}
+.mobile-nav ul{list-style:none; display:flex; flex-direction:column; gap:10px;}
+.mobile-nav li{
+  background:rgba(255,255,255,0.78); border:1px solid rgba(18,32,61,0.12);
+  border-radius:12px; overflow:hidden; box-shadow:0 8px 18px -12px rgba(18,32,61,0.35);
+}
+.mobile-nav a{
+  display:block; color:var(--indigo-dark); font-size:19px; font-family:'Fraunces',serif;
+  padding:14px 16px; border-bottom:none; background:linear-gradient(90deg, rgba(232,163,61,0.08), rgba(18,32,61,0.03));
+}
+.mobile-nav a:hover{background:linear-gradient(90deg, rgba(232,163,61,0.22), rgba(18,32,61,0.06)); color:var(--indigo-dark);}
 .mobile-nav .nav-cta{display:inline-block; margin-top:24px;}
 
 /* ---------- PAGE HERO (interior pages) ---------- */
