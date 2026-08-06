@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://yashsgoel123-creator.github.io/New-Horizon-School/sitemap.xml
