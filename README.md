@@ -66,5 +66,4 @@ The site is deployed via GitHub Pages from this repository. Pushes to the defaul
 
 ## Notes
 
-- Some campus/facility photos are placeholder stock images (via `picsum.photos`) pending real photography.
 - SEO basics (`sitemap.xml`, `robots.txt`, Open Graph/Twitter meta tags, canonical URLs) are included on every page.
