@@ -30,31 +30,19 @@
         </div>
       </div>
       <div class="login-pane">
-        <div class="role-tabs" id="role-tabs">
-          <button type="button" class="active" data-role="admin">Admin</button>
-          <button type="button" data-role="teacher">Teacher</button>
-          <button type="button" data-role="parent">Parent</button>
-        </div>
-
-        <div class="demo-note" id="demo-note">
-          This is a working demo. Sign in as the admin office — no real password needed.
-        </div>
+        <h2 style="margin-bottom:.2rem;">Sign in</h2>
+        <p style="font-size:.85rem;margin-bottom:1.2rem;">Use the email and password given to you by the school office.</p>
 
         <div class="login-err" id="login-err">Please select an account and enter any password to continue.</div>
 
         <form id="login-form">
-          <div id="login-user-field">
-            <label for="login-username">Username</label>
-            <input type="text" id="login-username" value="admin" readonly>
-          </div>
-          <div id="login-select-field" style="display:none;">
-            <label for="login-select">Sign in as</label>
-            <select id="login-select"></select>
-          </div>
+          <label for="login-email">Email</label>
+          <input type="email" id="login-email" required autocomplete="username" placeholder="you@newhorizonschool.in">
           <label for="login-password">Password</label>
-          <input type="password" id="login-password" placeholder="Any password works in this demo">
+          <input type="password" id="login-password" required autocomplete="current-password">
           <button type="submit" class="btn gold" style="width:100%;justify-content:center;margin-top:.3rem;">Sign in &rarr;</button>
         </form>
+        <p style="font-size:.75rem;margin-top:1rem;">First time setting this up? See <code>README.md</code> for how the admin office creates logins for staff and parents.</p>
       </div>
     </div>
   </div>
@@ -177,7 +165,6 @@
 
 <div id="toast"></div>
 
-<script src="js/erp-data.js"></script>
-<script src="js/erp-app.js"></script>
+<script type="module" src="js/erp-app.js"></script>
 </body>
 </html>
