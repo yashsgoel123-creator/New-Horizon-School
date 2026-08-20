@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP Portal — New Horizon School</title>
+<meta name="description" content="Admin, Teacher and Parent portal for New Horizon School, Muzaffarnagar.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/erp-style.css">
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- LOGIN VIEW                                                    -->
+<!-- ============================================================ -->
+<div id="view-login" class="view active">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-brandpane">
+        <div>
+          <div class="mark">NH</div>
+          <h2>New Horizon<br>School ERP</h2>
+          <p>Forward · Onward · Upward<br>CBSE Affiliated · Muzaffarnagar, U.P.</p>
+        </div>
+        <div>
+          <p class="tag">One portal, three views</p>
+          <p style="color:#DCE5F0;font-size:.85rem;">Admins manage the school, teachers run their classroom, and parents stay close to their child's day — all from one place.</p>
+          <a class="back-site" href="https://yashsgoel123-creator.github.io/New-Horizon-School/" style="color:#9CC0E8;">&larr; Back to school website</a>
+        </div>
+      </div>
+      <div class="login-pane">
+        <div class="role-tabs" id="role-tabs">
+          <button type="button" class="active" data-role="admin">Admin</button>
+          <button type="button" data-role="teacher">Teacher</button>
+          <button type="button" data-role="parent">Parent</button>
+        </div>
+
+        <div class="demo-note" id="demo-note">
+          This is a working demo. Sign in as the admin office — no real password needed.
+        </div>
+
+        <div class="login-err" id="login-err">Please select an account and enter any password to continue.</div>
+
+        <form id="login-form">
+          <div id="login-user-field">
+            <label for="login-username">Username</label>
+            <input type="text" id="login-username" value="admin" readonly>
+          </div>
+          <div id="login-select-field" style="display:none;">
+            <label for="login-select">Sign in as</label>
+            <select id="login-select"></select>
+          </div>
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="Any password works in this demo">
+          <button type="submit" class="btn gold" style="width:100%;justify-content:center;margin-top:.3rem;">Sign in &rarr;</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- ADMIN PORTAL                                                  -->
+<!-- ============================================================ -->
+<div id="view-admin" class="view">
+  <div class="erp-shell">
+    <div class="sidebar-overlay" id="admin-overlay"></div>
+    <aside class="erp-sidebar" id="admin-sidebar">
+      <div class="erp-brand"><div class="mark">NH</div><div class="name">New Horizon<small>Admin Portal</small></div></div>
+      <nav class="erp-nav" id="admin-nav">
+        <div class="section-label">Overview</div>
+        <button class="nav-item active" data-view="dashboard"><span class="ico">&#9673;</span> Dashboard</button>
+        <div class="section-label">People</div>
+        <button class="nav-item" data-view="students"><span class="ico">&#128100;</span> Students</button>
+        <button class="nav-item" data-view="teachers"><span class="ico">&#127891;</span> Teachers</button>
+        <button class="nav-item" data-view="classes"><span class="ico">&#128218;</span> Classes</button>
+        <div class="section-label">Operations</div>
+        <button class="nav-item" data-view="attendance"><span class="ico">&#128203;</span> Attendance</button>
+        <button class="nav-item" data-view="fees"><span class="ico">&#8377;</span> Fee Management</button>
+        <button class="nav-item" data-view="announcements"><span class="ico">&#128276;</span> Announcements</button>
+      </nav>
+      <div class="erp-user">
+        <div class="avatar">A</div>
+        <div class="who"><div class="n">Admin Office</div><div class="r">Administrator</div></div>
+        <a href="#" class="logout" data-logout>Log out</a>
+      </div>
+    </aside>
+    <div class="erp-main">
+      <div class="erp-topbar">
+        <div style="display:flex;align-items:center;gap:.6rem;">
+          <button class="erp-menu-btn" data-menu-toggle="admin">&#9776;</button>
+          <div><h1 id="admin-title">Dashboard</h1><div class="sub" id="admin-subtitle">School-wide overview</div></div>
+        </div>
+        <div class="today" id="admin-date"></div>
+      </div>
+      <div class="erp-content" id="admin-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TEACHER PORTAL                                                -->
+<!-- ============================================================ -->
+<div id="view-teacher" class="view">
+  <div class="erp-shell">
+    <div class="sidebar-overlay" id="teacher-overlay"></div>
+    <aside class="erp-sidebar" id="teacher-sidebar">
+      <div class="erp-brand"><div class="mark">NH</div><div class="name">New Horizon<small>Teacher Portal</small></div></div>
+      <nav class="erp-nav" id="teacher-nav">
+        <div class="section-label">Overview</div>
+        <button class="nav-item active" data-view="dashboard"><span class="ico">&#9673;</span> Dashboard</button>
+        <div class="section-label">Classroom</div>
+        <button class="nav-item" data-view="attendance"><span class="ico">&#128203;</span> Take Attendance</button>
+        <button class="nav-item" data-view="marks"><span class="ico">&#9997;</span> Enter Marks</button>
+        <button class="nav-item" data-view="homework"><span class="ico">&#128218;</span> Homework</button>
+        <button class="nav-item" data-view="students"><span class="ico">&#128100;</span> My Class</button>
+        <div class="section-label">School</div>
+        <button class="nav-item" data-view="announcements"><span class="ico">&#128276;</span> Announcements</button>
+      </nav>
+      <div class="erp-user">
+        <div class="avatar" id="teacher-avatar">T</div>
+        <div class="who"><div class="n" id="teacher-name">—</div><div class="r" id="teacher-subject">Teacher</div></div>
+        <a href="#" class="logout" data-logout>Log out</a>
+      </div>
+    </aside>
+    <div class="erp-main">
+      <div class="erp-topbar">
+        <div style="display:flex;align-items:center;gap:.6rem;">
+          <button class="erp-menu-btn" data-menu-toggle="teacher">&#9776;</button>
+          <div><h1 id="teacher-title">Dashboard</h1><div class="sub" id="teacher-subtitle">Your classroom, today</div></div>
+        </div>
+        <div class="today" id="teacher-date"></div>
+      </div>
+      <div class="erp-content" id="teacher-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- PARENT PORTAL                                                 -->
+<!-- ============================================================ -->
+<div id="view-parent" class="view">
+  <div class="erp-shell">
+    <div class="sidebar-overlay" id="parent-overlay"></div>
+    <aside class="erp-sidebar" id="parent-sidebar">
+      <div class="erp-brand"><div class="mark">NH</div><div class="name">New Horizon<small>Parent Portal</small></div></div>
+      <nav class="erp-nav" id="parent-nav">
+        <div class="section-label">Overview</div>
+        <button class="nav-item active" data-view="dashboard"><span class="ico">&#9673;</span> Dashboard</button>
+        <div class="section-label">My Child</div>
+        <button class="nav-item" data-view="attendance"><span class="ico">&#128203;</span> Attendance</button>
+        <button class="nav-item" data-view="grades"><span class="ico">&#128202;</span> Grades &amp; Report</button>
+        <button class="nav-item" data-view="fees"><span class="ico">&#8377;</span> Fees</button>
+        <button class="nav-item" data-view="homework"><span class="ico">&#128218;</span> Homework</button>
+        <div class="section-label">School</div>
+        <button class="nav-item" data-view="announcements"><span class="ico">&#128276;</span> Announcements</button>
+      </nav>
+      <div class="erp-user">
+        <div class="avatar" id="parent-avatar">P</div>
+        <div class="who"><div class="n" id="parent-name">—</div><div class="r">Parent</div></div>
+        <a href="#" class="logout" data-logout>Log out</a>
+      </div>
+    </aside>
+    <div class="erp-main">
+      <div class="erp-topbar">
+        <div style="display:flex;align-items:center;gap:.6rem;">
+          <button class="erp-menu-btn" data-menu-toggle="parent">&#9776;</button>
+          <div><h1 id="parent-title">Dashboard</h1><div class="sub" id="parent-subtitle">Welcome back</div></div>
+        </div>
+        <div class="today" id="parent-date"></div>
+      </div>
+      <div class="erp-content" id="parent-content"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="js/erp-data.js"></script>
+<script src="js/erp-app.js"></script>
+</body>
+</html>
