@@ -1,13 +1,14 @@
 // =========================================================
 // New Horizon School — Firebase Initialization
 // =========================================================
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, doc, setDoc, updateDoc, deleteDoc,
   onSnapshot, getDocs, getDoc, query, where, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
-  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+  createUserWithEmailAndPassword, signOut as secondarySignOut,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
@@ -23,6 +24,28 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+// ---------------------------------------------------------
+// Secondary Firebase app instance — used ONLY to create new
+// teacher/parent logins from inside the Admin portal without
+// signing the admin themselves out. Firebase's Web SDK signs
+// you in as whichever user you just created; running that on
+// a second, throwaway app instance keeps the admin's own
+// session on the primary `auth` untouched.
+// ---------------------------------------------------------
+function secondaryAuth() {
+  const name = "Secondary";
+  const secApp = getApps().some((a) => a.name === name) ? getApp(name) : initializeApp(firebaseConfig, name);
+  return getAuth(secApp);
+}
+
+export async function createLoginAccount(email, password) {
+  const sAuth = secondaryAuth();
+  const cred = await createUserWithEmailAndPassword(sAuth, email, password);
+  const uid = cred.user.uid;
+  await secondarySignOut(sAuth); // clears the throwaway session only — admin stays signed in on `auth`
+  return uid;
+}
 
 export {
   collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, getDoc, query, where, writeBatch,

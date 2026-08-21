@@ -1,9 +1,14 @@
 /* =========================================================
    New Horizon School — ERP App Logic (Firebase-connected)
    ========================================================= */
-import { DB, subscribeAll, login, logout, watchAuth, seedIfEmpty } from "./erp-data.js";
+import { DB, subscribeAll, login, logout, watchAuth, seedIfEmpty, ensureStandardClasses } from "./erp-data.js";
 
-const App = { role: null, userId: null, name: null, activeChildId: null, lastView: { admin: "dashboard", teacher: "dashboard", parent: "dashboard" } };
+const App = {
+  role: null, userId: null, name: null, activeChildId: null,
+  lastView: { admin: "dashboard", teacher: "dashboard", parent: "dashboard" },
+  feesFilter: { classId: "", q: "" },
+  attFilter: { classId: "", q: "" },
+};
 let unsubscribeData = null;
 
 /* ---------------- helpers ---------------- */
@@ -66,7 +71,10 @@ function friendlyAuthError(err) {
   const code = err?.code || "";
   if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) return "Incorrect email or password.";
   if (code.includes("too-many-requests")) return "Too many attempts. Please wait a moment and try again.";
-  return err?.message || "Couldn't sign in. Please try again.";
+  if (code.includes("email-already-in-use")) return "That email already has a login. Leave the login fields blank if you just want to update the record.";
+  if (code.includes("weak-password")) return "Password must be at least 6 characters.";
+  if (code.includes("invalid-email")) return "That doesn't look like a valid email address.";
+  return err?.message || "Something went wrong. Please try again.";
 }
 
 function enterPortal(profile) {
@@ -146,8 +154,8 @@ function renderAdminView(view) {
   if (view === "dashboard") c.innerHTML = adminDashboardHTML();
   else if (view === "students") { c.innerHTML = adminStudentsHTML(); bindAdminStudents(); }
   else if (view === "teachers") { c.innerHTML = adminTeachersHTML(); bindAdminTeachers(); }
-  else if (view === "classes") c.innerHTML = adminClassesHTML();
-  else if (view === "attendance") c.innerHTML = adminAttendanceHTML();
+  else if (view === "classes") { c.innerHTML = adminClassesHTML(); bindAdminClasses(); }
+  else if (view === "attendance") { c.innerHTML = adminAttendanceHTML(); bindAdminAttendance(); }
   else if (view === "fees") { c.innerHTML = adminFeesHTML(); bindAdminFees(); }
   else if (view === "announcements") { c.innerHTML = adminAnnouncementsHTML(); bindAdminAnnouncements(); }
 }
@@ -171,7 +179,7 @@ function adminDashboardHTML() {
   <div class="two-col">
     <div class="panel"><div class="panel-head"><h2>Classes at a glance</h2></div>
       <div class="table-wrap"><table><thead><tr><th>Class</th><th>Class Teacher</th><th>Students</th></tr></thead>
-        <tbody>${DB.classes.map((cl) => `<tr><td>${esc(cl.name)}-${esc(cl.section)}</td><td>${esc(DB.teacherById(cl.classTeacherId)?.name || "—")}</td><td>${DB.studentsInClass(cl.id).length}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">No classes yet.</td></tr>`}</tbody>
+        <tbody>${DB.classes.map((cl) => `<tr><td>${esc(DB.classLabel(cl.id))}</td><td>${esc(DB.teacherById(cl.classTeacherId)?.name || "—")}</td><td>${DB.studentsInClass(cl.id).length}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">No classes yet.</td></tr>`}</tbody>
       </table></div>
     </div>
     <div class="panel"><div class="panel-head"><h2>Recent announcements</h2></div>
@@ -185,12 +193,19 @@ function adminStudentsHTML() {
     <tr><td>${esc(s.name)}</td><td>${DB.classLabel(s.classId)}</td><td>${s.roll}</td>
       <td>${esc(DB.parentById(s.parentId)?.name || "Not linked")}</td><td>${DB.attendancePct(s.id) ?? "—"}%</td>
       <td><button class="btn sm danger" data-remove-student="${s.id}">Remove</button></td></tr>`).join("");
+  const classOptions = DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
   return `
   <div class="panel"><div class="panel-head"><h2>Add a student</h2></div>
     <div class="panel-body"><form id="add-student-form">
       <div class="form-row"><div><label>Full name</label><input type="text" id="s-name" required></div><div><label>Roll number</label><input type="number" id="s-roll" required min="1"></div></div>
-      <div class="form-row"><div><label>Class</label><select id="s-class">${DB.classes.map((c) => `<option value="${c.id}">${esc(c.name)}-${esc(c.section)}</option>`).join("")}</select></div>
-        <div><label>Link to parent (optional)</label><select id="s-parent"><option value="">— none —</option>${DB.parents.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div></div>
+      <label>Class</label><select id="s-class">${classOptions || `<option value="">No classes yet — set these up on the Classes tab</option>`}</select>
+      <div class="form-row">
+        <div><label>Parent's name</label><input type="text" id="s-parent-name" placeholder="e.g. Ritu Malhotra"></div>
+        <div><label>Parent's email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="s-parent-email" placeholder="for their portal login"></div>
+      </div>
+      <label>Parent's password <span style="font-weight:400;color:var(--ink-soft);">(optional — only if email is given)</span></label>
+      <input type="text" id="s-parent-password" placeholder="min. 6 characters">
+      <div class="field-hint">If this parent already exists (same name), the student links to them and no new login is created. If it's a new name, a parent record is created — with a real login too, if you fill in email &amp; password.</div>
       <button class="btn gold" type="submit">Add Student</button>
     </form></div>
   </div>
@@ -202,8 +217,13 @@ function adminStudentsHTML() {
 function bindAdminStudents() {
   $("#add-student-form").addEventListener("submit", async (e) => {
     e.preventDefault(); setBusy(e.target, true);
-    try { await DB.addStudent($("#s-name").value.trim(), $("#s-class").value, $("#s-roll").value, $("#s-parent").value || null); toast("Student added."); }
-    catch (err) { toast("Couldn't save — " + err.message); }
+    try {
+      await DB.addStudent(
+        $("#s-name").value.trim(), $("#s-class").value, $("#s-roll").value,
+        $("#s-parent-name").value.trim(), $("#s-parent-email").value.trim(), $("#s-parent-password").value
+      );
+      toast("Student added.");
+    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
     setBusy(e.target, false);
   });
   $all("[data-remove-student]").forEach((btn) => btn.addEventListener("click", async () => {
@@ -212,71 +232,210 @@ function bindAdminStudents() {
 }
 
 function adminTeachersHTML() {
+  const classCheckboxes = (t) => DB.classesSorted().map((c) => `
+    <label style="display:flex;align-items:center;gap:.4rem;font-weight:400;font-size:.8rem;padding:.15rem 0;">
+      <input type="checkbox" data-teacher-class="${t.id}" value="${c.id}" ${(t.classIds||[]).includes(c.id)?"checked":""} style="width:auto;margin:0;">
+      ${esc(DB.classLabel(c.id))}
+    </label>`).join("");
   const rows = DB.teachers.map((t) => `
     <tr><td>${esc(t.name)}</td><td>${esc(t.subject)}</td><td>${esc(t.phone || "")}</td>
-      <td>${DB.classesForTeacher(t.id).map((c) => `${esc(c.name)}-${esc(c.section)}`).join(", ") || "—"}</td>
+      <td class="wrap"><div style="max-height:110px;overflow-y:auto;min-width:160px;">${classCheckboxes(t) || "No classes yet"}</div></td>
       <td><button class="btn sm danger" data-remove-teacher="${t.id}">Remove</button></td></tr>`).join("");
   return `
   <div class="panel"><div class="panel-head"><h2>Add a teacher</h2></div>
     <div class="panel-body"><form id="add-teacher-form">
       <div class="form-row"><div><label>Full name</label><input type="text" id="t-name" required></div><div><label>Subject</label><input type="text" id="t-subject" required></div></div>
       <div class="form-row"><div><label>Phone</label><input type="text" id="t-phone"></div><div><label>Username</label><input type="text" id="t-username"></div></div>
+      <div class="form-row">
+        <div><label>Login email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="t-email" placeholder="for their portal login"></div>
+        <div><label>Login password <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="t-password" placeholder="min. 6 characters"></div>
+      </div>
+      <div class="field-hint">Fill in email &amp; password to also create their real sign-in right now — no need to touch the Firebase console. Leave both blank to just save the record for later. Once added, tick which classes they teach in the table below.</div>
       <button class="btn gold" type="submit">Add Teacher</button>
     </form>
-    <div class="field-hint" style="margin-top:.6rem;">Adding a teacher here only creates their record. To give them a real login, also create their account in Firebase Authentication and a matching <code>users</code> document — see README.</div>
     </div>
   </div>
   <div class="panel"><div class="panel-head"><h2>All teachers (${DB.teachers.length})</h2></div>
-    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Subject</th><th>Phone</th><th>Classes</th><th></th></tr></thead>
+    <div class="panel-body" style="padding-bottom:0;"><p style="margin:0 0 .6rem;">Tick the classes each teacher is assigned to — saves automatically.</p></div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Subject</th><th>Phone</th><th>Classes taught</th><th></th></tr></thead>
       <tbody>${rows || `<tr><td colspan="5" class="empty">No teachers yet.</td></tr>`}</tbody></table></div>
   </div>`;
 }
 function bindAdminTeachers() {
   $("#add-teacher-form").addEventListener("submit", async (e) => {
     e.preventDefault(); setBusy(e.target, true);
-    try { await DB.addTeacher($("#t-name").value.trim(), $("#t-subject").value.trim(), $("#t-phone").value.trim(), $("#t-username").value.trim()); toast("Teacher added."); }
-    catch (err) { toast("Couldn't save — " + err.message); }
+    try {
+      await DB.addTeacher(
+        $("#t-name").value.trim(), $("#t-subject").value.trim(), $("#t-phone").value.trim(), $("#t-username").value.trim(),
+        $("#t-email").value.trim(), $("#t-password").value
+      );
+      toast("Teacher added.");
+    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
     setBusy(e.target, false);
   });
   $all("[data-remove-teacher]").forEach((btn) => btn.addEventListener("click", async () => {
     if (confirm("Remove this teacher from records?")) { await DB.removeTeacher(btn.dataset.removeTeacher); toast("Teacher removed."); }
   }));
+  $all("[data-teacher-class]").forEach((cb) => cb.addEventListener("change", async () => {
+    const teacherId = cb.dataset.teacherClass;
+    const checked = $all(`[data-teacher-class="${teacherId}"]:checked`).map((c) => c.value);
+    try { await DB.setTeacherClasses(teacherId, checked); toast("Classes updated."); }
+    catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+  }));
 }
 
 function adminClassesHTML() {
-  return `<div class="panel"><div class="panel-head"><h2>Classes &amp; sections</h2></div>
-    <div class="table-wrap"><table><thead><tr><th>Class</th><th>Class Teacher</th><th>Students</th><th>Subjects</th></tr></thead>
-      <tbody>${DB.classes.map((c) => `<tr><td>${esc(c.name)}-${esc(c.section)}</td><td>${esc(DB.teacherById(c.classTeacherId)?.name || "—")}</td><td>${DB.studentsInClass(c.id).length}</td><td class="wrap">${(DB.timetable[c.id]||[]).join(", ")}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">No classes yet.</td></tr>`}</tbody>
+  const hasNursery = DB.classes.some((c) => c.id === "nursery");
+  const setupNote = !hasNursery
+    ? `<div class="panel"><div class="panel-body"><p style="margin-bottom:.8rem;">Set up the standard class list — Nursery, LKG, UKG, and Class 1 through Class 12 — so they're ready to pick from everywhere in the app.</p><button class="btn gold" id="setup-classes-btn">Set Up Standard Classes</button></div></div>`
+    : "";
+  const teacherOptions = (selectedId) => `<option value="">— unassigned —</option>` + DB.teachers.map((t) => `<option value="${t.id}" ${t.id===selectedId?"selected":""}>${esc(t.name)}</option>`).join("");
+  const rows = DB.classesSorted().map((c) => `
+    <tr data-class-row="${c.id}">
+      <td>${esc(DB.classLabel(c.id))}</td>
+      <td><select class="ct-select" data-class-teacher="${c.id}" style="margin:0;">${teacherOptions(c.classTeacherId)}</select></td>
+      <td>${DB.studentsInClass(c.id).length}</td>
+      <td class="wrap"><input type="text" class="subj-input" data-subjects="${c.id}" value="${esc((c.subjects || []).join(", "))}" placeholder="e.g. English, Maths, Science" style="margin:0;min-width:220px;"></td>
+      <td style="white-space:nowrap;"><button class="btn sm outline" data-save-subjects="${c.id}">Save</button> <button class="btn sm danger" data-remove-class="${c.id}">Remove</button></td>
+    </tr>`).join("");
+  return `${setupNote}
+  <div class="panel"><div class="panel-head"><h2>Classes &amp; sections</h2></div>
+    <div class="panel-body" style="padding-bottom:0;"><p style="margin:0 0 .8rem;">Set each class's teacher and subject list here. Changing the class teacher dropdown saves right away; edit the subjects box and click Save.</p></div>
+    <div class="table-wrap"><table><thead><tr><th>Class</th><th>Class Teacher</th><th>Students</th><th>Subjects</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="5" class="empty">No classes yet.</td></tr>`}</tbody>
     </table></div></div>`;
+}
+function bindAdminClasses() {
+  const setupBtn = $("#setup-classes-btn");
+  if (setupBtn) setupBtn.addEventListener("click", async () => { setupBtn.disabled = true; setupBtn.textContent = "Setting up…"; await ensureStandardClasses(); toast("Standard classes are ready."); });
+  $all("[data-remove-class]").forEach((btn) => btn.addEventListener("click", async () => {
+    if (confirm("Remove this class? Students already in it will keep their record but show an unknown class until reassigned.")) { await DB.removeClass(btn.dataset.removeClass); toast("Class removed."); }
+  }));
+  $all("[data-class-teacher]").forEach((sel) => sel.addEventListener("change", async () => {
+    try { await DB.setClassTeacher(sel.dataset.classTeacher, sel.value || null); toast("Class teacher updated."); }
+    catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+  }));
+  $all("[data-save-subjects]").forEach((btn) => btn.addEventListener("click", async () => {
+    const classId = btn.dataset.saveSubjects;
+    const input = $(`[data-subjects="${classId}"]`);
+    const subjects = input.value.split(",").map((s) => s.trim()).filter(Boolean);
+    btn.disabled = true;
+    try { await DB.setClassSubjects(classId, subjects); toast("Subjects saved."); }
+    catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    btn.disabled = false;
+  }));
 }
 
 function adminAttendanceHTML() {
-  const rows = DB.classes.map((c) => {
+  const classRows = DB.classesSorted().map((c) => {
     const students = DB.studentsInClass(c.id);
     const pcts = students.map((s) => DB.attendancePct(s.id)).filter((p) => p !== null);
     const avg = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
-    return `<tr><td>${esc(c.name)}-${esc(c.section)}</td><td>${students.length}</td><td>${avg===null?"—":avg+"%"}</td><td><div class="progress-bar"><span style="width:${avg||0}%"></span></div></td></tr>`;
+    return `<tr><td>${esc(DB.classLabel(c.id))}</td><td>${students.length}</td><td>${avg===null?"—":avg+"%"}</td><td><div class="progress-bar"><span style="width:${avg||0}%"></span></div></td></tr>`;
   }).join("");
+
+  const classOptions = `<option value="">All classes</option>` + DB.classesSorted().map((c) => `<option value="${c.id}" ${App.attFilter.classId===c.id?"selected":""}>${esc(DB.classLabel(c.id))}</option>`).join("");
+
   return `<div class="panel"><div class="panel-head"><h2>Attendance by class</h2></div>
-    <div class="table-wrap"><table><thead><tr><th>Class</th><th>Students</th><th>Avg. attendance</th><th style="width:160px;">Trend</th></tr></thead><tbody>${rows || `<tr><td colspan="4" class="empty">No data yet.</td></tr>`}</tbody></table></div></div>`;
+    <div class="table-wrap"><table><thead><tr><th>Class</th><th>Students</th><th>Avg. attendance</th><th style="width:160px;">Trend</th></tr></thead><tbody>${classRows || `<tr><td colspan="4" class="empty">No data yet.</td></tr>`}</tbody></table></div></div>
+  <div class="panel">
+    <div class="panel-head"><h2>Find a student</h2>
+      <div class="pill-filter"><select id="att-filter-class">${classOptions}</select><input type="text" id="att-filter-q" placeholder="Search by name…" value="${esc(App.attFilter.q)}" style="width:200px;"></div>
+    </div>
+    <div class="table-wrap" id="att-filter-results"></div>
+  </div>`;
+}
+function renderAttFilterResults() {
+  const q = App.attFilter.q.trim().toLowerCase();
+  const rows = DB.students
+    .filter((s) => !App.attFilter.classId || s.classId === App.attFilter.classId)
+    .filter((s) => !q || s.name.toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((s) => `<tr><td>${esc(s.name)}</td><td>${DB.classLabel(s.classId)}</td><td>${s.roll}</td><td>${DB.attendancePct(s.id) ?? "—"}%</td></tr>`)
+    .join("");
+  $("#att-filter-results").innerHTML = `<table><thead><tr><th>Name</th><th>Class</th><th>Roll</th><th>Attendance</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="4" class="empty">No matching students.</td></tr>`}</tbody></table>`;
+}
+function bindAdminAttendance() {
+  renderAttFilterResults();
+  $("#att-filter-class").addEventListener("change", (e) => { App.attFilter.classId = e.target.value; renderAttFilterResults(); });
+  $("#att-filter-q").addEventListener("input", (e) => { App.attFilter.q = e.target.value; renderAttFilterResults(); });
 }
 
 function adminFeesHTML() {
-  const rows = DB.fees.map((f) => { const s = DB.studentById(f.studentId); return `<tr><td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td><td>${f.status !== "paid" ? `<button class="btn sm outline" data-mark-paid="${f.id}">Mark Paid</button>` : "—"}</td></tr>`; }).join("");
   const collected = DB.fees.filter((f) => f.status === "paid").reduce((s, f) => s + f.amount, 0);
   const pending = DB.fees.filter((f) => f.status !== "paid").reduce((s, f) => s + f.amount, 0);
+  const classOptions = `<option value="">All classes</option>` + DB.classesSorted().map((c) => `<option value="${c.id}" ${App.feesFilter.classId===c.id?"selected":""}>${esc(DB.classLabel(c.id))}</option>`).join("");
+
+  const structureRows = DB.classesSorted().map((c) => {
+    const rule = DB.feeRuleFor(c.id);
+    return `<tr data-fee-rule-row="${c.id}">
+      <td>${esc(DB.classLabel(c.id))}</td>
+      <td><input type="text" class="fr-term" data-fr-term="${c.id}" value="${esc(rule?.term || "")}" placeholder="e.g. Term 2 (2026-27)" style="margin:0;min-width:170px;"></td>
+      <td><input type="number" class="fr-amount" data-fr-amount="${c.id}" value="${rule?.amount ?? ""}" placeholder="Amount" style="margin:0;width:110px;"></td>
+      <td><input type="date" class="fr-due" data-fr-due="${c.id}" value="${rule?.dueDate || ""}" style="margin:0;"></td>
+      <td style="white-space:nowrap;">
+        <button class="btn sm outline" data-save-rule="${c.id}">Save</button>
+        <button class="btn sm gold" data-apply-rule="${c.id}" ${rule ? "" : "disabled"}>Apply to ${DB.studentsInClass(c.id).length} students</button>
+      </td>
+    </tr>`;
+  }).join("");
+
   return `<div class="stat-grid">
     <div class="stat-card accent-green"><div class="label">Collected</div><div class="value">&#8377;${collected.toLocaleString("en-IN")}</div></div>
     <div class="stat-card accent-red"><div class="label">Outstanding</div><div class="value">&#8377;${pending.toLocaleString("en-IN")}</div></div>
     <div class="stat-card accent-navy"><div class="label">Records</div><div class="value">${DB.fees.length}</div></div>
   </div>
-  <div class="panel"><div class="panel-head"><h2>Fee records</h2></div>
-    <div class="table-wrap"><table><thead><tr><th>Student</th><th>Class</th><th>Term</th><th>Amount</th><th>Due date</th><th>Status</th><th></th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="7" class="empty">No fee records yet.</td></tr>`}</tbody></table></div>
+  <div class="panel">
+    <div class="panel-head"><h2>Class fee structure</h2></div>
+    <div class="panel-body" style="padding-bottom:0;"><p style="margin:0 0 .6rem;">Set how much each class should pay this term, then click <strong>Apply</strong> to create or update that fee for every student in the class (existing paid records keep their paid status).</p></div>
+    <div class="table-wrap"><table><thead><tr><th>Class</th><th>Term</th><th>Amount</th><th>Due date</th><th></th></tr></thead>
+      <tbody>${structureRows || `<tr><td colspan="5" class="empty">No classes yet — set these up on the Classes tab.</td></tr>`}</tbody></table></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Fee records</h2>
+      <div class="pill-filter"><select id="fee-filter-class">${classOptions}</select><input type="text" id="fee-filter-q" placeholder="Search by name…" value="${esc(App.feesFilter.q)}" style="width:200px;"></div>
+    </div>
+    <div class="table-wrap" id="fee-filter-results"></div>
   </div>`;
 }
+function renderFeeFilterResults() {
+  const q = App.feesFilter.q.trim().toLowerCase();
+  const rows = DB.fees
+    .map((f) => ({ f, s: DB.studentById(f.studentId) }))
+    .filter(({ s }) => !App.feesFilter.classId || s?.classId === App.feesFilter.classId)
+    .filter(({ s }) => !q || (s?.name || "").toLowerCase().includes(q))
+    .sort((a, b) => (a.s?.name || "").localeCompare(b.s?.name || ""))
+    .map(({ f, s }) => `<tr><td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td><td>${f.status !== "paid" ? `<button class="btn sm outline" data-mark-paid="${f.id}">Mark Paid</button>` : "—"}</td></tr>`)
+    .join("");
+  $("#fee-filter-results").innerHTML = `<table><thead><tr><th>Student</th><th>Class</th><th>Term</th><th>Amount</th><th>Due date</th><th>Status</th><th></th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="7" class="empty">No matching fee records.</td></tr>`}</tbody></table>`;
+  $all("[data-mark-paid]", $("#fee-filter-results")).forEach((btn) => btn.addEventListener("click", async () => { await DB.markFeePaid(btn.dataset.markPaid); toast("Marked as paid."); }));
+}
 function bindAdminFees() {
-  $all("[data-mark-paid]").forEach((btn) => btn.addEventListener("click", async () => { await DB.markFeePaid(btn.dataset.markPaid); toast("Marked as paid."); }));
+  renderFeeFilterResults();
+  $("#fee-filter-class").addEventListener("change", (e) => { App.feesFilter.classId = e.target.value; renderFeeFilterResults(); });
+  $("#fee-filter-q").addEventListener("input", (e) => { App.feesFilter.q = e.target.value; renderFeeFilterResults(); });
+
+  $all("[data-save-rule]").forEach((btn) => btn.addEventListener("click", async () => {
+    const classId = btn.dataset.saveRule;
+    const term = $(`[data-fr-term="${classId}"]`).value.trim();
+    const amount = $(`[data-fr-amount="${classId}"]`).value;
+    const due = $(`[data-fr-due="${classId}"]`).value;
+    if (!term || !amount) { toast("Enter both a term and an amount."); return; }
+    btn.disabled = true;
+    try { await DB.setClassFeeRule(classId, term, amount, due); toast("Fee structure saved."); }
+    catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    btn.disabled = false;
+  }));
+  $all("[data-apply-rule]").forEach((btn) => btn.addEventListener("click", async () => {
+    const classId = btn.dataset.applyRule;
+    if (!confirm(`Apply this fee to every student in ${DB.classLabel(classId)}? This updates their fee records for that term.`)) return;
+    btn.disabled = true;
+    try { const count = await DB.applyClassFeeRule(classId); toast(`Fee applied to ${count} student(s).`); }
+    catch (err) { toast("Couldn't apply — " + friendlyAuthError(err)); }
+    btn.disabled = false;
+  }));
 }
 
 function adminAnnouncementsHTML() {
@@ -337,13 +496,13 @@ function teacherDashboardHTML(t) {
   </div>
   <div class="panel"><div class="panel-head"><h2>Your classes</h2></div>
     <div class="table-wrap"><table><thead><tr><th>Class</th><th>Subject</th><th>Students</th></tr></thead>
-      <tbody>${classes.map((c) => `<tr><td>${esc(c.name)}-${esc(c.section)}</td><td>${esc(t.subject)}</td><td>${DB.studentsInClass(c.id).length}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">No classes assigned.</td></tr>`}</tbody>
+      <tbody>${classes.map((c) => `<tr><td>${esc(DB.classLabel(c.id))}</td><td>${esc(t.subject)}</td><td>${DB.studentsInClass(c.id).length}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">No classes assigned.</td></tr>`}</tbody>
     </table></div></div>`;
 }
 
 function teacherAttendanceHTML(t) {
   const classes = DB.classesForTeacher(t.id);
-  const classOptions = classes.map((c) => `<option value="${c.id}">${esc(c.name)}-${esc(c.section)}</option>`).join("");
+  const classOptions = classes.map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
   return `<div class="panel"><div class="panel-head"><h2>Mark attendance</h2>
     <div class="pill-filter"><select id="att-class">${classOptions}</select><input type="date" id="att-date" value="${DB.todayISO()}"></div></div>
     <div class="panel-body"><div class="att-list" id="att-list"></div><button class="btn gold" id="save-att" style="margin-top:1rem;">Save Attendance</button></div>
@@ -383,7 +542,7 @@ function bindTeacherAttendance(t) {
 
 function teacherMarksHTML(t) {
   const classes = DB.classesForTeacher(t.id);
-  const classOptions = classes.map((c) => `<option value="${c.id}">${esc(c.name)}-${esc(c.section)}</option>`).join("");
+  const classOptions = classes.map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
   return `<div class="panel"><div class="panel-head"><h2>Enter marks</h2>
     <div class="pill-filter"><select id="mk-class">${classOptions}</select><input type="text" id="mk-exam" value="Term 2" style="width:160px;"><input type="number" id="mk-max" value="50" style="width:100px;"></div></div>
     <div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Student</th><th>Roll</th><th style="width:140px;">Marks</th></tr></thead><tbody id="mk-body"></tbody></table></div>
@@ -417,7 +576,7 @@ function bindTeacherMarks(t) {
 
 function teacherHomeworkHTML(t) {
   const classes = DB.classesForTeacher(t.id);
-  const classOptions = classes.map((c) => `<option value="${c.id}">${esc(c.name)}-${esc(c.section)}</option>`).join("");
+  const classOptions = classes.map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
   const list = DB.homework.filter((h) => classes.some((c) => c.id === h.classId));
   return `<div class="panel"><div class="panel-head"><h2>Assign homework</h2></div>
     <div class="panel-body"><form id="hw-form">
@@ -441,7 +600,7 @@ function bindTeacherHomework(t) {
 
 function teacherStudentsHTML(t) {
   const classes = DB.classesForTeacher(t.id);
-  return classes.map((c) => { const students = DB.studentsInClass(c.id); return `<div class="panel"><div class="panel-head"><h2>${esc(c.name)}-${esc(c.section)} (${students.length} students)</h2></div>
+  return classes.map((c) => { const students = DB.studentsInClass(c.id); return `<div class="panel"><div class="panel-head"><h2>${esc(DB.classLabel(c.id))} (${students.length} students)</h2></div>
     <div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Attendance</th><th>Parent</th></tr></thead>
       <tbody>${students.map((s) => `<tr><td>${s.roll}</td><td>${esc(s.name)}</td><td>${DB.attendancePct(s.id) ?? "—"}%</td><td>${esc(DB.parentById(s.parentId)?.name || "Not linked")}</td></tr>`).join("")}</tbody></table></div></div>`; }).join("") || `<div class="empty">No classes assigned.</div>`;
 }
@@ -482,7 +641,6 @@ function renderParentView(view) {
 
   c.innerHTML = (view !== "announcements" ? switcher : "") + body;
   $all("[data-child]", c).forEach((btn) => btn.addEventListener("click", () => { App.activeChildId = btn.dataset.child; renderParentView(view); }));
-  if (view === "fees") bindParentFees();
 }
 
 function parentDashboardHTML(child) {
@@ -512,12 +670,9 @@ function parentGradesHTML(child) {
 }
 function parentFeesHTML(child) {
   const rows = DB.feesFor(child.id);
-  return `<div class="panel"><div class="panel-head"><h2>Fee records</h2></div><div class="table-wrap"><table><thead><tr><th>Term</th><th>Amount</th><th>Due date</th><th>Status</th><th></th></tr></thead>
-    <tbody>${rows.map((f) => `<tr><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td><td>${f.status !== "paid" ? `<button class="btn sm gold" data-pay="${f.id}">Pay Now</button>` : "—"}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">No fee records.</td></tr>`}</tbody></table></div></div>
-  <div class="panel"><div class="panel-head"><h2>Note</h2></div><div class="panel-body"><p>Online payment isn't wired to a real payment gateway yet. In production this button would open Razorpay / Paytm / your bank's gateway.</p></div></div>`;
-}
-function bindParentFees() {
-  $all("[data-pay]").forEach((btn) => btn.addEventListener("click", async () => { await DB.markFeePaid(btn.dataset.pay); toast("Payment recorded — thank you!"); }));
+  return `<div class="panel"><div class="panel-head"><h2>Fee records</h2></div><div class="table-wrap"><table><thead><tr><th>Term</th><th>Amount</th><th>Due date</th><th>Status</th></tr></thead>
+    <tbody>${rows.map((f) => `<tr><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">No fee records.</td></tr>`}</tbody></table></div></div>
+  <div class="panel"><div class="panel-head"><h2>Note</h2></div><div class="panel-body"><p>Fee payments are recorded by the school office once received. For payment queries, please contact the admin office directly.</p></div></div>`;
 }
 function parentHomeworkHTML(child) {
   const rows = DB.homeworkForClass(child.classId);
