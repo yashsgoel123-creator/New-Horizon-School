@@ -8,6 +8,7 @@ const App = {
   lastView: { admin: "dashboard", teacher: "dashboard", parent: "dashboard" },
   feesFilter: { classId: "", q: "" },
   attFilter: { classId: "", q: "" },
+  hwEditId: null,
 };
 let unsubscribeData = null;
 
@@ -16,6 +17,11 @@ function $(sel, root = document) { return root.querySelector(sel); }
 function $all(sel, root = document) { return [...root.querySelectorAll(sel)]; }
 function esc(str) { return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
 function fmtDate(iso) { if (!iso) return "—"; const d = new Date(iso + "T00:00:00"); return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
+function sortByPostedRecentFirst(a, b) {
+  const ta = a.postedAt ?? new Date(a.postedDate || 0).getTime();
+  const tb = b.postedAt ?? new Date(b.postedDate || 0).getTime();
+  return tb - ta;
+}
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast._h); toast._h = setTimeout(() => t.classList.remove("show"), 2400); }
 function switchView(id) { $all(".view").forEach((v) => v.classList.remove("active")); $(`#${id}`).classList.add("active"); }
 function feeBadge(status) { const map = { paid: "green", pending: "gold", overdue: "red" }; return `<span class="badge ${map[status] || "navy"}">${esc(status)}</span>`; }
@@ -179,7 +185,7 @@ function adminDashboardHTML() {
   <div class="two-col">
     <div class="panel"><div class="panel-head"><h2>Classes at a glance</h2></div>
       <div class="table-wrap"><table><thead><tr><th>Class</th><th>Class Teacher</th><th>Students</th></tr></thead>
-        <tbody>${DB.classes.map((cl) => `<tr><td>${esc(DB.classLabel(cl.id))}</td><td>${esc(DB.teacherById(cl.classTeacherId)?.name || "—")}</td><td>${DB.studentsInClass(cl.id).length}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">No classes yet.</td></tr>`}</tbody>
+        <tbody>${DB.classesSorted().map((cl) => `<tr><td>${esc(DB.classLabel(cl.id))}</td><td>${esc(DB.teacherById(cl.classTeacherId)?.name || "—")}</td><td>${DB.studentsInClass(cl.id).length}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">No classes yet.</td></tr>`}</tbody>
       </table></div>
     </div>
     <div class="panel"><div class="panel-head"><h2>Recent announcements</h2></div>
@@ -289,6 +295,12 @@ function adminClassesHTML() {
   const setupNote = !hasNursery
     ? `<div class="panel"><div class="panel-body"><p style="margin-bottom:.8rem;">Set up the standard class list — Nursery, LKG, UKG, and Class 1 through Class 12 — so they're ready to pick from everywhere in the app.</p><button class="btn gold" id="setup-classes-btn">Set Up Standard Classes</button></div></div>`
     : "";
+  const alumniCount = DB.students.filter((s) => s.classId === "alumni").length;
+  const promoteNote = `<div class="panel"><div class="panel-body">
+    <p style="margin-bottom:.4rem;"><strong>New academic year?</strong> This moves every student up one class — Nursery→LKG, LKG→UKG, … Class 11→Class 12. Class 12 students become Alumni (they leave the regular class lists but their records are kept).</p>
+    <p class="field-hint" style="margin:.2rem 0 .8rem;">This affects every class at once and can't be undone automatically — double-check attendance, marks, and fees are wrapped up for the year before running it.${alumniCount ? ` Currently ${alumniCount} student(s) marked Alumni.` : ""}</p>
+    <button class="btn gold" id="promote-btn">Promote All Students to Next Class</button>
+  </div></div>`;
   const teacherOptions = (selectedId) => `<option value="">— unassigned —</option>` + DB.teachers.map((t) => `<option value="${t.id}" ${t.id===selectedId?"selected":""}>${esc(t.name)}</option>`).join("");
   const rows = DB.classesSorted().map((c) => `
     <tr data-class-row="${c.id}">
@@ -303,7 +315,8 @@ function adminClassesHTML() {
     <div class="panel-body" style="padding-bottom:0;"><p style="margin:0 0 .8rem;">Set each class's teacher and subject list here. Changing the class teacher dropdown saves right away; edit the subjects box and click Save.</p></div>
     <div class="table-wrap"><table><thead><tr><th>Class</th><th>Class Teacher</th><th>Students</th><th>Subjects</th><th></th></tr></thead>
       <tbody>${rows || `<tr><td colspan="5" class="empty">No classes yet.</td></tr>`}</tbody>
-    </table></div></div>`;
+    </table></div></div>
+  ${promoteNote}`;
 }
 function bindAdminClasses() {
   const setupBtn = $("#setup-classes-btn");
@@ -324,6 +337,15 @@ function bindAdminClasses() {
     catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
     btn.disabled = false;
   }));
+  const promoteBtn = $("#promote-btn");
+  if (promoteBtn) promoteBtn.addEventListener("click", async () => {
+    if (!confirm("Promote EVERY student to the next class for the new academic year? Class 12 students will be marked Alumni. This can't be undone automatically.")) return;
+    if (!confirm("Just to be sure — this changes the class of every student in the school right now. Continue?")) return;
+    promoteBtn.disabled = true; promoteBtn.textContent = "Promoting…";
+    try { const count = await DB.promoteAllStudents(); toast(`Promoted ${count} student(s) to their next class.`); }
+    catch (err) { toast("Couldn't promote — " + friendlyAuthError(err)); }
+    promoteBtn.disabled = false; promoteBtn.textContent = "Promote All Students to Next Class";
+  });
 }
 
 function adminAttendanceHTML() {
@@ -482,7 +504,7 @@ function renderTeacherView(view) {
   else if (view === "marks") { c.innerHTML = teacherMarksHTML(t); bindTeacherMarks(t); }
   else if (view === "homework") { c.innerHTML = teacherHomeworkHTML(t); bindTeacherHomework(t); }
   else if (view === "students") c.innerHTML = teacherStudentsHTML(t);
-  else if (view === "announcements") c.innerHTML = renderAnnouncementsList(DB.announcementsFor("teachers"));
+  else if (view === "announcements") { c.innerHTML = teacherAnnouncementsHTML(t); bindTeacherAnnouncements(t); }
 }
 
 function teacherDashboardHTML(t) {
@@ -577,23 +599,70 @@ function bindTeacherMarks(t) {
 function teacherHomeworkHTML(t) {
   const classes = DB.classesForTeacher(t.id);
   const classOptions = classes.map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
-  const list = DB.homework.filter((h) => classes.some((c) => c.id === h.classId));
-  return `<div class="panel"><div class="panel-head"><h2>Assign homework</h2></div>
+  const list = [...DB.homework.filter((h) => classes.some((c) => c.id === h.classId))].sort(sortByPostedRecentFirst);
+  const editing = App.hwEditId ? DB.homework.find((h) => h.id === App.hwEditId) : null;
+  return `<div class="panel"><div class="panel-head"><h2>${editing ? "Edit homework" : "Assign homework"}</h2></div>
     <div class="panel-body"><form id="hw-form">
-      <div class="form-row"><div><label>Class</label><select id="hw-class">${classOptions}</select></div><div><label>Due date</label><input type="date" id="hw-due" value="${DB.isoDaysAgo(-3)}"></div></div>
-      <label>Details</label><textarea id="hw-desc" required></textarea>
-      <button class="btn gold" type="submit">Post Homework</button>
+      <div class="form-row"><div><label>Class</label><select id="hw-class">${classOptions}</select></div><div><label>Due date</label><input type="date" id="hw-due" value="${editing ? editing.dueDate : DB.isoDaysAgo(-3)}"></div></div>
+      <label>Details</label><textarea id="hw-desc" required>${editing ? esc(editing.description) : ""}</textarea>
+      <button class="btn gold" type="submit">${editing ? "Update Homework" : "Post Homework"}</button>
+      ${editing ? `<button type="button" class="btn outline" id="hw-cancel-edit" style="margin-left:.5rem;">Cancel</button>` : ""}
     </form></div></div>
   <div class="panel"><div class="panel-head"><h2>Posted homework</h2></div>
-    <div class="table-wrap"><table><thead><tr><th>Class</th><th>Subject</th><th>Details</th><th>Due</th></tr></thead>
-      <tbody>${list.map((h) => `<tr><td>${DB.classLabel(h.classId)}</td><td>${esc(h.subject)}</td><td class="wrap">${esc(h.description)}</td><td>${fmtDate(h.dueDate)}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">Nothing posted yet.</td></tr>`}</tbody>
+    <div class="table-wrap"><table><thead><tr><th>Class</th><th>Subject</th><th>Details</th><th>Posted</th><th>Due</th><th></th></tr></thead>
+      <tbody>${list.map((h) => `<tr><td>${DB.classLabel(h.classId)}</td><td>${esc(h.subject)}</td><td class="wrap">${esc(h.description)}</td><td>${fmtDate(h.postedDate)}</td><td>${fmtDate(h.dueDate)}</td><td style="white-space:nowrap;"><button class="btn sm outline" data-edit-hw="${h.id}">Edit</button> <button class="btn sm danger" data-delete-hw="${h.id}">Delete</button></td></tr>`).join("") || `<tr><td colspan="6" class="empty">Nothing posted yet.</td></tr>`}</tbody>
     </table></div></div>`;
 }
 function bindTeacherHomework(t) {
+  if (editingSelectDefault()) $("#hw-class").value = editingSelectDefault();
   $("#hw-form").addEventListener("submit", async (e) => {
     e.preventDefault(); setBusy(e.target, true);
-    try { await DB.addHomework($("#hw-class").value, t.subject, $("#hw-desc").value.trim(), $("#hw-due").value, t.id); toast("Homework posted."); }
-    catch (err) { toast("Couldn't post — " + err.message); }
+    try {
+      if (App.hwEditId) {
+        await DB.updateHomework(App.hwEditId, { classId: $("#hw-class").value, description: $("#hw-desc").value.trim(), dueDate: $("#hw-due").value });
+        toast("Homework updated.");
+        App.hwEditId = null;
+      } else {
+        await DB.addHomework($("#hw-class").value, t.subject, $("#hw-desc").value.trim(), $("#hw-due").value, t.id);
+        toast("Homework posted.");
+      }
+    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    setBusy(e.target, false);
+  });
+  $all("[data-edit-hw]").forEach((btn) => btn.addEventListener("click", () => { App.hwEditId = btn.dataset.editHw; renderTeacherView("homework"); window.scrollTo(0, 0); }));
+  $all("[data-delete-hw]").forEach((btn) => btn.addEventListener("click", async () => {
+    if (!confirm("Delete this homework? Students and parents will no longer see it.")) return;
+    try {
+      await DB.removeHomework(btn.dataset.deleteHw);
+      if (App.hwEditId === btn.dataset.deleteHw) App.hwEditId = null;
+      toast("Homework deleted.");
+    } catch (err) { toast("Couldn't delete — " + friendlyAuthError(err)); }
+  }));
+  const cancelBtn = $("#hw-cancel-edit");
+  if (cancelBtn) cancelBtn.addEventListener("click", () => { App.hwEditId = null; renderTeacherView("homework"); });
+  function editingSelectDefault() {
+    const editing = App.hwEditId ? DB.homework.find((h) => h.id === App.hwEditId) : null;
+    return editing ? editing.classId : null;
+  }
+}
+
+function teacherAnnouncementsHTML(t) {
+  const sorted = [...DB.announcements].sort((a, b) => (a.date < b.date ? 1 : -1));
+  const rows = sorted.map((a) => `<div class="panel-body" style="border-bottom:1px solid var(--line);"><div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;"><div style="font-weight:600;">${esc(a.title)}</div><span class="badge navy">${esc(a.audience)}</span></div><p style="margin:.4rem 0;">${esc(a.body)}</p><div style="font-size:.75rem;color:var(--ink-soft);">${fmtDate(a.date)} · ${esc(a.postedBy)}</div></div>`).join("");
+  return `<div class="panel"><div class="panel-head"><h2>Post an announcement</h2></div>
+    <div class="panel-body"><form id="t-add-ann-form">
+      <label>Title</label><input type="text" id="t-an-title" required>
+      <label>Message</label><textarea id="t-an-body" required></textarea>
+      <label>Audience</label><select id="t-an-audience"><option value="all">Everyone</option><option value="parents">Parents only</option></select>
+      <button class="btn gold" type="submit" style="margin-top:.4rem;">Post Announcement</button>
+    </form></div></div>
+  <div class="panel"><div class="panel-head"><h2>All announcements</h2></div>${rows || `<div class="empty">Nothing posted yet.</div>`}</div>`;
+}
+function bindTeacherAnnouncements(t) {
+  $("#t-add-ann-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); setBusy(e.target, true);
+    try { await DB.addAnnouncement($("#t-an-title").value.trim(), $("#t-an-body").value.trim(), $("#t-an-audience").value, t.name); toast("Announcement posted."); }
+    catch (err) { toast("Couldn't post — " + friendlyAuthError(err)); }
     setBusy(e.target, false);
   });
 }
@@ -647,7 +716,7 @@ function parentDashboardHTML(child) {
   const att = DB.attendancePct(child.id);
   const fees = DB.feesFor(child.id);
   const due = fees.filter((f) => f.status !== "paid").reduce((s, f) => s + f.amount, 0);
-  const hw = DB.homeworkForClass(child.classId).slice(0, 3);
+  const hw = [...DB.homeworkForClass(child.classId)].sort(sortByPostedRecentFirst).slice(0, 3);
   return `<div class="stat-grid">
     <div class="stat-card accent-green"><div class="label">Attendance</div><div class="value">${att ?? "—"}%</div></div>
     <div class="stat-card accent-navy"><div class="label">Class</div><div class="value">${DB.classLabel(child.classId)}</div><div class="delta">Roll No. ${child.roll}</div></div>
@@ -675,9 +744,9 @@ function parentFeesHTML(child) {
   <div class="panel"><div class="panel-head"><h2>Note</h2></div><div class="panel-body"><p>Fee payments are recorded by the school office once received. For payment queries, please contact the admin office directly.</p></div></div>`;
 }
 function parentHomeworkHTML(child) {
-  const rows = DB.homeworkForClass(child.classId);
+  const rows = [...DB.homeworkForClass(child.classId)].sort(sortByPostedRecentFirst);
   return `<div class="panel"><div class="panel-head"><h2>Homework for ${DB.classLabel(child.classId)}</h2></div>
-    <div class="panel-body">${rows.map((h) => `<div style="margin-bottom:1.1rem;padding-bottom:1.1rem;border-bottom:1px solid var(--line);"><div style="display:flex;justify-content:space-between;gap:1rem;"><strong>${esc(h.subject)}</strong><span style="font-size:.78rem;color:var(--ink-soft);">Due ${fmtDate(h.dueDate)}</span></div><p style="margin:.3rem 0 0;">${esc(h.description)}</p></div>`).join("") || `<div class="empty">No homework posted.</div>`}</div></div>`;
+    <div class="panel-body">${rows.map((h) => `<div style="margin-bottom:1.1rem;padding-bottom:1.1rem;border-bottom:1px solid var(--line);"><div style="display:flex;justify-content:space-between;gap:1rem;"><strong>${esc(h.subject)}</strong><span style="font-size:.78rem;color:var(--ink-soft);">Due ${fmtDate(h.dueDate)}</span></div><p style="margin:.3rem 0 0;">${esc(h.description)}</p><div style="font-size:.72rem;color:var(--ink-soft);margin-top:.2rem;">Posted ${fmtDate(h.postedDate)}</div></div>`).join("") || `<div class="empty">No homework posted.</div>`}</div></div>`;
 }
 
 function renderAnnouncementsList(list) {

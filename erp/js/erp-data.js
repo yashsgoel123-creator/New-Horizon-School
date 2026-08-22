@@ -42,7 +42,19 @@ export const DB = {
 
   // ---- lookups (all read from the local, live-synced cache) ----
   classById(id) { return this.classes.find((c) => c.id === id); },
-  classLabel(id) { const c = this.classById(id); if (!c) return "—"; return c.section ? `${c.name}-${c.section}` : c.name; },
+  classLabel(id) {
+    if (id === "alumni") return "Alumni / Graduated";
+    const c = this.classById(id); if (!c) return "—"; return c.section ? `${c.name}-${c.section}` : c.name;
+  },
+  // returns the next standard class's id for promotion, "alumni" if this
+  // was Class 12, or null if classId isn't part of the standard sequence
+  nextClassId(classId) {
+    const order = STANDARD_CLASSES.map(([id]) => id);
+    const i = order.indexOf(classId);
+    if (i === -1) return null;
+    if (i === order.length - 1) return "alumni";
+    return order[i + 1];
+  },
   // sorted in natural school order (Nursery, LKG, UKG, Class 1..12), unknown/custom classes fall to the end alphabetically
   classesSorted() {
     const order = STANDARD_CLASSES.map(([id]) => id);
@@ -183,7 +195,24 @@ export const DB = {
 
   async addHomework(classId, subject, description, dueDate, postedBy) {
     const ref = doc(collection(db, "homework"));
-    await setDoc(ref, { classId, subject, description, dueDate, postedBy });
+    await setDoc(ref, { classId, subject, description, dueDate, postedBy, postedDate: this.todayISO(), postedAt: Date.now() });
+  },
+  async updateHomework(id, { classId, description, dueDate }) {
+    await updateDoc(doc(db, "homework", id), { classId, description, dueDate });
+  },
+  async removeHomework(id) { await deleteDoc(doc(db, "homework", id)); },
+
+  // ---- promotion: move every student in a standard class up one level
+  // for the new academic year. Class 12 students become "alumni".
+  async promoteAllStudents() {
+    const batch = writeBatch(db);
+    let count = 0;
+    this.students.forEach((s) => {
+      const next = this.nextClassId(s.classId);
+      if (next) { batch.update(doc(db, "students", s.id), { classId: next }); count++; }
+    });
+    await batch.commit();
+    return count;
   },
 };
 
