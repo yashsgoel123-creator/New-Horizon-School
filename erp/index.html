@@ -62,6 +62,7 @@
         <div class="section-label">People</div>
         <button class="nav-item" data-view="students"><span class="ico">&#128100;</span> Students</button>
         <button class="nav-item" data-view="teachers"><span class="ico">&#127891;</span> Teachers</button>
+        <button class="nav-item" data-view="reception-staff"><span class="ico">&#127974;</span> Reception Staff</button>
         <button class="nav-item" data-view="classes"><span class="ico">&#128218;</span> Classes</button>
         <div class="section-label">Operations</div>
         <button class="nav-item" data-view="attendance"><span class="ico">&#128203;</span> Attendance</button>
@@ -159,6 +160,46 @@
         <div class="today" id="parent-date"></div>
       </div>
       <div class="erp-content" id="parent-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- RECEPTION PORTAL                                              -->
+<!-- ============================================================ -->
+<div id="view-reception" class="view">
+  <div class="erp-shell">
+    <div class="sidebar-overlay" id="reception-overlay"></div>
+    <aside class="erp-sidebar" id="reception-sidebar">
+      <div class="erp-brand"><div class="mark">NH</div><div class="name">New Horizon<small>Reception Portal</small></div></div>
+      <nav class="erp-nav" id="reception-nav">
+        <div class="section-label">Overview</div>
+        <button class="nav-item active" data-view="dashboard"><span class="ico">&#9673;</span> Dashboard</button>
+        <button class="nav-item" data-view="search"><span class="ico">&#128269;</span> Search</button>
+        <div class="section-label">Front Desk</div>
+        <button class="nav-item" data-view="students"><span class="ico">&#128100;</span> Student Records</button>
+        <button class="nav-item" data-view="admissions"><span class="ico">&#128221;</span> Admissions / Enquiry</button>
+        <button class="nav-item" data-view="visitors"><span class="ico">&#128694;</span> Visitor Management</button>
+        <div class="section-label">Operations</div>
+        <button class="nav-item" data-view="fees"><span class="ico">&#8377;</span> Fees &amp; Gatepass</button>
+        <button class="nav-item" data-view="communication"><span class="ico">&#128172;</span> Communication</button>
+        <button class="nav-item" data-view="reports"><span class="ico">&#128202;</span> Reports</button>
+      </nav>
+      <div class="erp-user">
+        <div class="avatar" id="reception-avatar">R</div>
+        <div class="who"><div class="n" id="reception-name">—</div><div class="r">Front Desk</div></div>
+        <a href="#" class="logout" data-logout>Log out</a>
+      </div>
+    </aside>
+    <div class="erp-main">
+      <div class="erp-topbar">
+        <div style="display:flex;align-items:center;gap:.6rem;">
+          <button class="erp-menu-btn" data-menu-toggle="reception">&#9776;</button>
+          <div><h1 id="reception-title">Dashboard</h1><div class="sub" id="reception-subtitle">Front desk overview</div></div>
+        </div>
+        <div class="today" id="reception-date"></div>
+      </div>
+      <div class="erp-content" id="reception-content"></div>
     </div>
   </div>
 </div>

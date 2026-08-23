@@ -5,11 +5,12 @@ import { DB, subscribeAll, login, logout, watchAuth, seedIfEmpty, ensureStandard
 
 const App = {
   role: null, userId: null, name: null, activeChildId: null,
-  lastView: { admin: "dashboard", teacher: "dashboard", parent: "dashboard" },
+  lastView: { admin: "dashboard", teacher: "dashboard", parent: "dashboard", reception: "dashboard" },
   feesFilter: { classId: "", q: "" },
   attFilter: { classId: "", q: "" },
   hwEditId: null,
   annEditId: null,
+  searchQuery: "",
 };
 let unsubscribeData = null;
 
@@ -109,13 +110,18 @@ function enterPortal(profile) {
     switchView("view-parent");
     bindNav("parent", (v) => { App.lastView.parent = v; renderParentView(v); });
     renderParentView(App.lastView.parent);
+  } else if (profile.role === "reception") {
+    switchView("view-reception");
+    bindNav("reception", (v) => { App.lastView.reception = v; renderReceptionView(v); });
+    renderReceptionView(App.lastView.reception);
   }
 }
 
 function renderCurrent() {
-  if (App.role === "admin") { $("#teacher-name") && updateTeacherHeader(); renderAdminView(App.lastView.admin); }
+  if (App.role === "admin") { renderAdminView(App.lastView.admin); }
   else if (App.role === "teacher") { updateTeacherHeader(); renderTeacherView(App.lastView.teacher); }
   else if (App.role === "parent") { updateParentHeader(); renderParentView(App.lastView.parent); }
+  else if (App.role === "reception") { updateReceptionHeader(); renderReceptionView(App.lastView.reception); }
 }
 function updateTeacherHeader() {
   const t = DB.teacherById(App.userId);
@@ -129,6 +135,12 @@ function updateParentHeader() {
   if (!p) return;
   $("#parent-name").textContent = p.name;
   $("#parent-avatar").textContent = p.name.charAt(0);
+}
+function updateReceptionHeader() {
+  const r = DB.receptionistById(App.userId);
+  if (!r) return;
+  $("#reception-name").textContent = r.name;
+  $("#reception-avatar").textContent = r.name.charAt(0);
 }
 
 function bindNav(portal, renderFn) {
@@ -151,7 +163,7 @@ function bindNav(portal, renderFn) {
 function renderAdminView(view) {
   const titles = {
     dashboard: ["Dashboard", "School-wide overview"], students: ["Students", "Manage student records"],
-    teachers: ["Teachers", "Manage staff records"], classes: ["Classes", "Sections and class teachers"],
+    teachers: ["Teachers", "Manage staff records"], "reception-staff": ["Reception Staff", "Manage front-desk logins"], classes: ["Classes", "Sections and class teachers"],
     attendance: ["Attendance", "School-wide attendance overview"], fees: ["Fee Management", "Track dues and collection"],
     announcements: ["Announcements", "Post notices to staff and parents"],
   };
@@ -161,10 +173,46 @@ function renderAdminView(view) {
   if (view === "dashboard") c.innerHTML = adminDashboardHTML();
   else if (view === "students") { c.innerHTML = adminStudentsHTML(); bindAdminStudents(); }
   else if (view === "teachers") { c.innerHTML = adminTeachersHTML(); bindAdminTeachers(); }
+  else if (view === "reception-staff") { c.innerHTML = adminReceptionHTML(); bindAdminReception(); }
   else if (view === "classes") { c.innerHTML = adminClassesHTML(); bindAdminClasses(); }
   else if (view === "attendance") { c.innerHTML = adminAttendanceHTML(); bindAdminAttendance(); }
   else if (view === "fees") { c.innerHTML = adminFeesHTML(); bindAdminFees(); }
   else if (view === "announcements") { c.innerHTML = adminAnnouncementsHTML(); bindAdminAnnouncements(); }
+}
+
+function adminReceptionHTML() {
+  const rows = DB.receptionists.map((r) => `
+    <tr><td>${esc(r.name)}</td><td>${esc(r.phone || "")}</td>
+      <td><button class="btn sm danger" data-remove-reception="${r.id}">Remove</button></td></tr>`).join("");
+  return `
+  <div class="panel"><div class="panel-head"><h2>Add reception staff</h2></div>
+    <div class="panel-body"><form id="add-reception-form">
+      <div class="form-row"><div><label>Full name</label><input type="text" id="rc-name" required></div><div><label>Phone</label><input type="text" id="rc-phone"></div></div>
+      <div class="form-row">
+        <div><label>Login email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="rc-email" placeholder="for their portal login"></div>
+        <div><label>Login password <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="rc-password" placeholder="min. 6 characters"></div>
+      </div>
+      <div class="field-hint">Fill in email &amp; password to create their real sign-in right now, the same way as for teachers. Leave both blank to just save the record for later.</div>
+      <button class="btn gold" type="submit">Add Reception Staff</button>
+    </form></div>
+  </div>
+  <div class="panel"><div class="panel-head"><h2>All reception staff (${DB.receptionists.length})</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="3" class="empty">No reception staff yet.</td></tr>`}</tbody></table></div>
+  </div>`;
+}
+function bindAdminReception() {
+  $("#add-reception-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); setBusy(e.target, true);
+    try {
+      await DB.addReceptionist($("#rc-name").value.trim(), $("#rc-phone").value.trim(), $("#rc-email").value.trim(), $("#rc-password").value);
+      toast("Reception staff added.");
+    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    setBusy(e.target, false);
+  });
+  $all("[data-remove-reception]").forEach((btn) => btn.addEventListener("click", async () => {
+    if (confirm("Remove this reception account?")) { await DB.removeReceptionist(btn.dataset.removeReception); toast("Reception staff removed."); }
+  }));
 }
 
 function adminDashboardHTML() {
@@ -197,7 +245,7 @@ function adminDashboardHTML() {
 
 function adminStudentsHTML() {
   const rows = DB.students.map((s) => `
-    <tr><td>${esc(s.name)}</td><td>${DB.classLabel(s.classId)}</td><td>${s.roll}</td>
+    <tr><td>${esc(s.name)}</td><td>${esc(s.admissionNo || "—")}</td><td>${DB.classLabel(s.classId)}</td><td>${s.roll}</td>
       <td>${esc(DB.parentById(s.parentId)?.name || "Not linked")}</td><td>${DB.attendancePct(s.id) ?? "—"}%</td>
       <td><button class="btn sm danger" data-remove-student="${s.id}">Remove</button></td></tr>`).join("");
   const classOptions = DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
@@ -205,20 +253,23 @@ function adminStudentsHTML() {
   <div class="panel"><div class="panel-head"><h2>Add a student</h2></div>
     <div class="panel-body"><form id="add-student-form">
       <div class="form-row"><div><label>Full name</label><input type="text" id="s-name" required></div><div><label>Roll number</label><input type="number" id="s-roll" required min="1"></div></div>
-      <label>Class</label><select id="s-class">${classOptions || `<option value="">No classes yet — set these up on the Classes tab</option>`}</select>
+      <div class="form-row"><div><label>Admission No. <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="s-admission-no" placeholder="e.g. NH-2026-041"></div>
+        <div><label>Class</label><select id="s-class">${classOptions || `<option value="">No classes yet — set these up on the Classes tab</option>`}</select></div></div>
       <div class="form-row">
         <div><label>Parent's name</label><input type="text" id="s-parent-name" placeholder="e.g. Ritu Malhotra"></div>
-        <div><label>Parent's email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="s-parent-email" placeholder="for their portal login"></div>
+        <div><label>Parent's phone <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="s-parent-phone" placeholder="10-digit mobile"></div>
       </div>
-      <label>Parent's password <span style="font-weight:400;color:var(--ink-soft);">(optional — only if email is given)</span></label>
-      <input type="text" id="s-parent-password" placeholder="min. 6 characters">
+      <div class="form-row">
+        <div><label>Parent's email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="s-parent-email" placeholder="for their portal login"></div>
+        <div><label>Parent's password <span style="font-weight:400;color:var(--ink-soft);">(optional — only if email is given)</span></label><input type="text" id="s-parent-password" placeholder="min. 6 characters"></div>
+      </div>
       <div class="field-hint">If this parent already exists (same name), the student links to them and no new login is created. If it's a new name, a parent record is created — with a real login too, if you fill in email &amp; password.</div>
       <button class="btn gold" type="submit">Add Student</button>
     </form></div>
   </div>
   <div class="panel"><div class="panel-head"><h2>All students (${DB.students.length})</h2></div>
-    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Class</th><th>Roll</th><th>Parent</th><th>Attendance</th><th></th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="6" class="empty">No students yet.</td></tr>`}</tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Admission No.</th><th>Class</th><th>Roll</th><th>Parent</th><th>Attendance</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="7" class="empty">No students yet.</td></tr>`}</tbody></table></div>
   </div>`;
 }
 function bindAdminStudents() {
@@ -226,8 +277,8 @@ function bindAdminStudents() {
     e.preventDefault(); setBusy(e.target, true);
     try {
       await DB.addStudent(
-        $("#s-name").value.trim(), $("#s-class").value, $("#s-roll").value,
-        $("#s-parent-name").value.trim(), $("#s-parent-email").value.trim(), $("#s-parent-password").value
+        $("#s-name").value.trim(), $("#s-class").value, $("#s-roll").value, $("#s-admission-no").value.trim(),
+        $("#s-parent-name").value.trim(), $("#s-parent-phone").value.trim(), $("#s-parent-email").value.trim(), $("#s-parent-password").value
       );
       toast("Student added.");
     } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
@@ -788,6 +839,336 @@ function renderAnnouncementsList(list) {
   return `<div class="panel"><div class="panel-head"><h2>Announcements</h2></div>
     ${sorted.map((a) => `<div class="panel-body" style="border-bottom:1px solid var(--line);"><div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;"><div style="font-weight:600;">${esc(a.title)}</div><span class="badge navy">${esc(a.audience)}</span></div><p style="margin:.4rem 0;">${esc(a.body)}</p><div style="font-size:.75rem;color:var(--ink-soft);">${fmtDate(a.date)} · ${esc(a.postedBy)}</div></div>`).join("") || `<div class="empty">No announcements yet.</div>`}
   </div>`;
+}
+
+/* =========================================================
+   RECEPTION PORTAL
+   ========================================================= */
+function currentReceptionist() { return DB.receptionistById(App.userId); }
+const enquiryStatusLabel = { new: "New", followup: "Follow-up", converted: "Converted", closed: "Closed" };
+const enquiryStatusBadge = { new: "navy", followup: "gold", converted: "green", closed: "red" };
+
+function renderReceptionView(view) {
+  const r = currentReceptionist();
+  if (!r) { $("#reception-content").innerHTML = `<div class="empty">Your reception account wasn't found. Ask the admin office to check your account.</div>`; return; }
+  const titles = {
+    dashboard: ["Dashboard", "Front desk overview"], search: ["Search", "Find a student, parent, or enquiry"],
+    students: ["Student Records", "Look up student and parent details"], admissions: ["Admissions / Enquiry", "New enquiries and admission follow-ups"],
+    visitors: ["Visitor Management", "Check visitors in and out"], fees: ["Fees & Gatepass", "View fee status and print gate passes"],
+    communication: ["Communication", "Message parents and view announcements"], reports: ["Reports", "Daily activity at a glance"],
+  };
+  $("#reception-title").textContent = titles[view][0];
+  $("#reception-subtitle").textContent = titles[view][1];
+  const c = $("#reception-content");
+  if (view === "dashboard") c.innerHTML = receptionDashboardHTML();
+  else if (view === "search") { c.innerHTML = receptionSearchHTML(); bindReceptionSearch(); }
+  else if (view === "students") { c.innerHTML = receptionStudentsHTML(); bindReceptionStudents(); }
+  else if (view === "admissions") { c.innerHTML = receptionAdmissionsHTML(); bindReceptionAdmissions(); }
+  else if (view === "visitors") { c.innerHTML = receptionVisitorsHTML(); bindReceptionVisitors(); }
+  else if (view === "fees") { c.innerHTML = receptionFeesHTML(r); bindReceptionFees(r); }
+  else if (view === "communication") { c.innerHTML = receptionCommunicationHTML(); bindReceptionCommunication(r); }
+  else if (view === "reports") c.innerHTML = receptionReportsHTML();
+}
+
+function receptionDashboardHTML() {
+  const todaysVisitors = DB.visitorsToday();
+  const inBuilding = todaysVisitors.filter((v) => !v.checkOutTime).length;
+  const openEnquiries = DB.enquiries.filter((e) => e.status === "new" || e.status === "followup").length;
+  const pendingFees = DB.fees.filter((f) => f.status !== "paid").length;
+  const recentEnquiries = [...DB.enquiries].sort((a, b) => (a.createdDate < b.createdDate ? 1 : -1)).slice(0, 5);
+
+  return `<div class="stat-grid">
+    <div class="stat-card accent-navy"><div class="label">Visitors Today</div><div class="value">${todaysVisitors.length}</div><div class="delta">${inBuilding} currently in building</div></div>
+    <div class="stat-card accent-gold"><div class="label">Open Enquiries</div><div class="value">${openEnquiries}</div><div class="delta">new + follow-up</div></div>
+    <div class="stat-card accent-red"><div class="label">Fee Records Pending</div><div class="value">${pendingFees}</div><div class="delta">view-only from here</div></div>
+    <div class="stat-card accent-green"><div class="label">Total Students</div><div class="value">${DB.students.length}</div><div class="delta">across ${DB.classes.length} classes</div></div>
+  </div>
+  <div class="two-col">
+    <div class="panel"><div class="panel-head"><h2>Today's visitors</h2></div>
+      <div class="table-wrap"><table><thead><tr><th>Name</th><th>To meet</th><th>In</th><th>Out</th></tr></thead>
+        <tbody>${todaysVisitors.map((v) => `<tr><td>${esc(v.name)}</td><td>${esc(v.personToMeet)}</td><td>${esc(v.checkInTime)}</td><td>${v.checkOutTime ? esc(v.checkOutTime) : `<span class="visitor-in">In building</span>`}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">No visitors yet today.</td></tr>`}</tbody>
+      </table></div>
+    </div>
+    <div class="panel"><div class="panel-head"><h2>Recent enquiries</h2></div>
+      <div class="table-wrap"><table><thead><tr><th>Name</th><th>Class</th><th>Status</th></tr></thead>
+        <tbody>${recentEnquiries.map((e) => `<tr><td>${esc(e.name)}</td><td>${DB.classLabel(e.classInterested)}</td><td><span class="badge ${enquiryStatusBadge[e.status]}">${enquiryStatusLabel[e.status]}</span></td></tr>`).join("") || `<tr><td colspan="3" class="empty">No enquiries yet.</td></tr>`}</tbody>
+      </table></div>
+    </div>
+  </div>`;
+}
+
+function receptionSearchHTML() {
+  return `<div class="panel"><div class="panel-head"><h2>Find a record</h2></div>
+    <div class="panel-body">
+      <div class="search-box"><input type="text" id="global-search-q" placeholder="Student name, admission no., mobile number, or enquiry ID…" value="${esc(App.searchQuery)}"><button class="btn gold" id="global-search-btn">Search</button></div>
+      <div id="global-search-results" style="margin-top:1.2rem;"></div>
+    </div>
+  </div>`;
+}
+function runGlobalSearch() {
+  const q = App.searchQuery;
+  const results = $("#global-search-results");
+  if (!q.trim()) { results.innerHTML = ""; return; }
+  const { students, parents, enquiries } = DB.globalSearch(q);
+  let html = "";
+  if (students.length) {
+    html += `<div class="result-group-label">Students</div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Admission No.</th><th>Class</th><th>Roll</th><th>Parent</th></tr></thead>
+      <tbody>${students.map((s) => `<tr><td>${esc(s.name)}</td><td>${esc(s.admissionNo || "—")}</td><td>${DB.classLabel(s.classId)}</td><td>${s.roll}</td><td>${esc(DB.parentById(s.parentId)?.name || "Not linked")}</td></tr>`).join("")}</tbody></table></div>`;
+  }
+  if (parents.length) {
+    html += `<div class="result-group-label">Parents</div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Children</th></tr></thead>
+      <tbody>${parents.map((p) => `<tr><td>${esc(p.name)}</td><td>${esc(p.phone || "—")}</td><td>${DB.childrenOf(p.id).map((c) => esc(c.name)).join(", ") || "—"}</td></tr>`).join("")}</tbody></table></div>`;
+  }
+  if (enquiries.length) {
+    html += `<div class="result-group-label">Enquiries</div><div class="table-wrap"><table><thead><tr><th>Enquiry ID</th><th>Name</th><th>Phone</th><th>Status</th></tr></thead>
+      <tbody>${enquiries.map((e) => `<tr><td>${esc(e.id)}</td><td>${esc(e.name)}</td><td>${esc(e.phone)}</td><td><span class="badge ${enquiryStatusBadge[e.status]}">${enquiryStatusLabel[e.status]}</span></td></tr>`).join("")}</tbody></table></div>`;
+  }
+  results.innerHTML = html || `<div class="empty">No matching records.</div>`;
+}
+function bindReceptionSearch() {
+  runGlobalSearch();
+  $("#global-search-btn").addEventListener("click", () => { App.searchQuery = $("#global-search-q").value; runGlobalSearch(); });
+  $("#global-search-q").addEventListener("keydown", (e) => { if (e.key === "Enter") { App.searchQuery = $("#global-search-q").value; runGlobalSearch(); } });
+}
+
+function receptionStudentsHTML() {
+  const classOptions = `<option value="">All classes</option>` + DB.classesSorted().map((c) => `<option value="${c.id}" ${App.attFilter.classId===c.id?"selected":""}>${esc(DB.classLabel(c.id))}</option>`).join("");
+  return `<div class="panel">
+    <div class="panel-head"><h2>Student records</h2>
+      <div class="pill-filter"><select id="rc-stu-class">${classOptions}</select><input type="text" id="rc-stu-q" placeholder="Search by name…" style="width:200px;"></div>
+    </div>
+    <div class="table-wrap" id="rc-stu-results"></div>
+  </div>`;
+}
+function renderReceptionStudentResults() {
+  const classId = $("#rc-stu-class").value;
+  const q = $("#rc-stu-q").value.trim().toLowerCase();
+  const rows = DB.students
+    .filter((s) => !classId || s.classId === classId)
+    .filter((s) => !q || s.name.toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((s) => { const p = DB.parentById(s.parentId); return `<tr><td>${esc(s.name)}</td><td>${esc(s.admissionNo || "—")}</td><td>${DB.classLabel(s.classId)}</td><td>${s.roll}</td><td><span class="badge navy">${esc(s.admissionStatus || "Enrolled")}</span></td><td>${esc(p?.name || "Not linked")}</td><td>${esc(p?.phone || "—")}</td></tr>`; })
+    .join("");
+  $("#rc-stu-results").innerHTML = `<table><thead><tr><th>Name</th><th>Admission No.</th><th>Class</th><th>Roll</th><th>Status</th><th>Parent</th><th>Parent Phone</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="7" class="empty">No matching students.</td></tr>`}</tbody></table>`;
+}
+function bindReceptionStudents() {
+  renderReceptionStudentResults();
+  $("#rc-stu-class").addEventListener("change", renderReceptionStudentResults);
+  $("#rc-stu-q").addEventListener("input", renderReceptionStudentResults);
+}
+
+function receptionAdmissionsHTML() {
+  const classOptions = DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
+  const sorted = [...DB.enquiries].sort((a, b) => (a.createdDate < b.createdDate ? 1 : -1));
+  const docLabel = { birthCertificate: "Birth Certificate", transferCertificate: "Transfer Certificate", photos: "Photographs", idProof: "ID Proof" };
+  const rows = sorted.map((e) => `
+    <div class="panel-body" style="border-bottom:1px solid var(--line);">
+      <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:center;">
+        <div><strong>${esc(e.name)}</strong> <span style="color:var(--ink-soft);font-size:.82rem;">· ${esc(e.phone)}${e.email ? " · " + esc(e.email) : ""}</span></div>
+        <span class="badge ${enquiryStatusBadge[e.status]}">${enquiryStatusLabel[e.status]}</span>
+      </div>
+      <div style="font-size:.82rem;color:var(--ink-soft);margin:.3rem 0;">Interested in ${DB.classLabel(e.classInterested)}${e.source ? " · Source: " + esc(e.source) : ""} · Enquired ${fmtDate(e.createdDate)}</div>
+      <div class="form-row" style="margin-top:.6rem;">
+        <div><label>Status</label><select data-enq-status="${e.id}" style="margin:0;">
+          <option value="new" ${e.status==="new"?"selected":""}>New</option>
+          <option value="followup" ${e.status==="followup"?"selected":""}>Follow-up</option>
+          <option value="converted" ${e.status==="converted"?"selected":""}>Converted</option>
+          <option value="closed" ${e.status==="closed"?"selected":""}>Closed</option>
+        </select></div>
+        <div><label>Follow-up date</label><input type="date" data-enq-followup="${e.id}" value="${e.followUpDate || ""}" style="margin:0;"></div>
+      </div>
+      <label style="margin-top:.6rem;">Follow-up notes</label>
+      <textarea data-enq-notes="${e.id}" style="min-height:50px;">${esc(e.followUpNotes || "")}</textarea>
+      <label style="display:flex;align-items:center;gap:.4rem;font-weight:400;font-size:.82rem;margin:.4rem 0;">
+        <input type="checkbox" data-enq-form="${e.id}" ${e.admissionFormReceived ? "checked" : ""} style="width:auto;margin:0;"> Admission form received
+      </label>
+      <div class="field-hint" style="margin-bottom:.3rem;">Documents received:</div>
+      <div class="doc-checklist">${Object.keys(docLabel).map((k) => `<label><input type="checkbox" data-enq-doc="${e.id}" data-doc-key="${k}" ${e.documents?.[k] ? "checked" : ""}> ${docLabel[k]}</label>`).join("")}</div>
+      <div style="margin-top:.7rem;"><button class="btn sm outline" data-enq-save="${e.id}">Save Changes</button> <button class="btn sm danger" data-enq-delete="${e.id}">Delete Enquiry</button></div>
+    </div>`).join("");
+  return `<div class="panel"><div class="panel-head"><h2>New enquiry</h2></div>
+    <div class="panel-body"><form id="enq-form">
+      <div class="form-row"><div><label>Name</label><input type="text" id="enq-name" required></div><div><label>Phone</label><input type="text" id="enq-phone" required></div></div>
+      <div class="form-row"><div><label>Email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="enq-email"></div>
+        <div><label>Class interested in</label><select id="enq-class">${classOptions}</select></div></div>
+      <label>Source <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="enq-source" placeholder="e.g. Walk-in, Phone, Referral, Website">
+      <button class="btn gold" type="submit">Add Enquiry</button>
+    </form></div></div>
+  <div class="panel"><div class="panel-head"><h2>All enquiries (${DB.enquiries.length})</h2></div>${rows || `<div class="empty">No enquiries yet.</div>`}</div>`;
+}
+function bindReceptionAdmissions() {
+  $("#enq-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); setBusy(e.target, true);
+    try {
+      await DB.addEnquiry($("#enq-name").value.trim(), $("#enq-phone").value.trim(), $("#enq-email").value.trim(), $("#enq-class").value, $("#enq-source").value.trim());
+      toast("Enquiry added.");
+    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    setBusy(e.target, false);
+  });
+  $all("[data-enq-save]").forEach((btn) => btn.addEventListener("click", async () => {
+    const id = btn.dataset.enqSave;
+    const status = $(`[data-enq-status="${id}"]`).value;
+    const followUpDate = $(`[data-enq-followup="${id}"]`).value;
+    const followUpNotes = $(`[data-enq-notes="${id}"]`).value.trim();
+    const admissionFormReceived = $(`[data-enq-form="${id}"]`).checked;
+    const documents = {};
+    $all(`[data-enq-doc="${id}"]`).forEach((cb) => { documents[cb.dataset.docKey] = cb.checked; });
+    btn.disabled = true;
+    try { await DB.updateEnquiry(id, { status, followUpDate, followUpNotes, admissionFormReceived, documents }); toast("Enquiry updated."); }
+    catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    btn.disabled = false;
+  }));
+  $all("[data-enq-delete]").forEach((btn) => btn.addEventListener("click", async () => {
+    if (confirm("Delete this enquiry?")) { await DB.removeEnquiry(btn.dataset.enqDelete); toast("Enquiry deleted."); }
+  }));
+}
+
+function receptionVisitorsHTML() {
+  const todays = [...DB.visitorsToday()].sort((a, b) => (a.checkInTime < b.checkInTime ? 1 : -1));
+  return `<div class="panel"><div class="panel-head"><h2>New visitor entry</h2></div>
+    <div class="panel-body"><form id="visitor-form">
+      <div class="form-row"><div><label>Visitor name</label><input type="text" id="v-name" required></div><div><label>Phone <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="v-phone"></div></div>
+      <div class="form-row"><div><label>Purpose of visit</label><input type="text" id="v-purpose" required placeholder="e.g. Meet class teacher, Admission enquiry"></div>
+        <div><label>Student / staff to meet</label><input type="text" id="v-meet" required placeholder="e.g. Mrs. Kavita Sharma, or Aarav Malhotra (Class 6)"></div></div>
+      <button class="btn gold" type="submit">Check In</button>
+    </form></div></div>
+  <div class="panel"><div class="panel-head"><h2>Today's visitors (${todays.length})</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Purpose</th><th>To meet</th><th>In</th><th>Out</th><th></th></tr></thead>
+      <tbody>${todays.map((v) => `<tr><td>${esc(v.name)}</td><td>${esc(v.phone || "—")}</td><td class="wrap">${esc(v.purpose)}</td><td>${esc(v.personToMeet)}</td><td>${esc(v.checkInTime)}</td><td>${v.checkOutTime ? esc(v.checkOutTime) : `<span class="visitor-in">In building</span>`}</td><td>${v.checkOutTime ? "—" : `<button class="btn sm outline" data-checkout="${v.id}">Check Out</button>`}</td></tr>`).join("") || `<tr><td colspan="7" class="empty">No visitors yet today.</td></tr>`}</tbody>
+    </table></div></div>`;
+}
+function bindReceptionVisitors() {
+  $("#visitor-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); setBusy(e.target, true);
+    try {
+      await DB.checkInVisitor($("#v-name").value.trim(), $("#v-phone").value.trim(), $("#v-purpose").value.trim(), $("#v-meet").value.trim());
+      toast("Visitor checked in.");
+    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    setBusy(e.target, false);
+  });
+  $all("[data-checkout]").forEach((btn) => btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try { await DB.checkOutVisitor(btn.dataset.checkout); toast("Visitor checked out."); }
+    catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+  }));
+}
+
+function receptionFeesHTML(r) {
+  const classOptions = `<option value="">All classes</option>` + DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
+  const studentOptions = [...DB.students].sort((a, b) => a.name.localeCompare(b.name)).map((s) => `<option value="${s.id}">${esc(s.name)} — ${DB.classLabel(s.classId)}</option>`).join("");
+  return `<div class="panel">
+    <div class="panel-head"><h2>Fee status (view only)</h2>
+      <div class="pill-filter"><select id="rc-fee-class">${classOptions}</select><input type="text" id="rc-fee-q" placeholder="Search by name…" style="width:200px;"></div>
+    </div>
+    <div class="table-wrap" id="rc-fee-results"></div>
+  </div>
+  <div class="panel"><div class="panel-head"><h2>Generate gate pass</h2></div>
+    <div class="panel-body">
+      <form id="gatepass-form">
+        <label>Student</label><select id="gp-student" required><option value="">— select student —</option>${studentOptions}</select>
+        <label>Reason</label><input type="text" id="gp-reason" required placeholder="e.g. Half-day leave, Picked up by parent">
+        <button class="btn gold" type="submit">Generate Gate Pass</button>
+      </form>
+      <div id="gatepass-preview"></div>
+    </div>
+  </div>`;
+}
+function renderReceptionFeeResults() {
+  const classId = $("#rc-fee-class").value;
+  const q = $("#rc-fee-q").value.trim().toLowerCase();
+  const rows = DB.fees
+    .map((f) => ({ f, s: DB.studentById(f.studentId) }))
+    .filter(({ s }) => !classId || s?.classId === classId)
+    .filter(({ s }) => !q || (s?.name || "").toLowerCase().includes(q))
+    .sort((a, b) => (a.s?.name || "").localeCompare(b.s?.name || ""))
+    .map(({ f, s }) => `<tr><td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td></tr>`)
+    .join("");
+  $("#rc-fee-results").innerHTML = `<table><thead><tr><th>Student</th><th>Class</th><th>Term</th><th>Amount</th><th>Due date</th><th>Status</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="6" class="empty">No matching fee records.</td></tr>`}</tbody></table>`;
+}
+function bindReceptionFees(r) {
+  renderReceptionFeeResults();
+  $("#rc-fee-class").addEventListener("change", renderReceptionFeeResults);
+  $("#rc-fee-q").addEventListener("input", renderReceptionFeeResults);
+  $("#gatepass-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); setBusy(e.target, true);
+    try {
+      const studentId = $("#gp-student").value;
+      const s = DB.studentById(studentId);
+      const gp = await DB.addGatepass(studentId, $("#gp-reason").value.trim(), r?.name || "Reception");
+      $("#gatepass-preview").innerHTML = `
+        <div class="gatepass-card print-only">
+          <div class="gp-head"><div class="gp-title">New Horizon School — Gate Pass</div></div>
+          <div class="gp-row"><span class="k">Student</span><span class="v">${esc(s.name)}</span></div>
+          <div class="gp-row"><span class="k">Class</span><span class="v">${DB.classLabel(s.classId)}</span></div>
+          <div class="gp-row"><span class="k">Reason</span><span class="v">${esc(gp.reason)}</span></div>
+          <div class="gp-row"><span class="k">Date</span><span class="v">${fmtDate(gp.date)}</span></div>
+          <div class="gp-row"><span class="k">Time</span><span class="v">${esc(gp.time)}</span></div>
+          <div class="gp-row"><span class="k">Issued by</span><span class="v">${esc(gp.issuedBy)}</span></div>
+        </div>
+        <div class="gatepass-card" style="border:none;padding-top:0;">
+          <button class="btn gold" id="gp-print-btn" style="margin-top:.8rem;">Print Gate Pass</button>
+        </div>`;
+      $("#gp-print-btn").addEventListener("click", () => window.print());
+      toast("Gate pass generated.");
+    } catch (err) { toast("Couldn't generate — " + friendlyAuthError(err)); }
+    setBusy(e.target, false);
+  });
+}
+
+function receptionCommunicationHTML() {
+  const parentOptions = [...DB.parents].sort((a, b) => a.name.localeCompare(b.name)).map((p) => `<option value="${p.id}">${esc(p.name)} (${DB.childrenOf(p.id).map((c) => c.name).join(", ") || "no child linked"})</option>`).join("");
+  return `<div class="panel"><div class="panel-head"><h2>Message a parent</h2></div>
+    <div class="panel-body"><form id="msg-form">
+      <label>Parent</label><select id="msg-parent" required><option value="">— select parent —</option>${parentOptions}</select>
+      <label>Title</label><input type="text" id="msg-title" required placeholder="e.g. Please collect fee receipt">
+      <label>Message</label><textarea id="msg-body" required></textarea>
+      <button class="btn gold" type="submit">Send</button>
+    </form></div></div>
+  ${renderAnnouncementsList(DB.announcements)}`;
+}
+function bindReceptionCommunication(r) {
+  $("#msg-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); setBusy(e.target, true);
+    try {
+      const parentId = $("#msg-parent").value;
+      const child = DB.childrenOf(parentId)[0];
+      await DB.sendParentMessage(parentId, child ? child.id : null, $("#msg-title").value.trim(), $("#msg-body").value.trim(), r?.name || "Reception");
+      toast("Message sent.");
+      e.target.reset();
+    } catch (err) { toast("Couldn't send — " + friendlyAuthError(err)); }
+    setBusy(e.target, false);
+  });
+}
+
+function receptionReportsHTML() {
+  const todaysVisitors = DB.visitorsToday();
+  const byStatus = { new: 0, followup: 0, converted: 0, closed: 0 };
+  DB.enquiries.forEach((e) => { byStatus[e.status] = (byStatus[e.status] || 0) + 1; });
+  const converted = [...DB.enquiries.filter((e) => e.status === "converted")].sort((a, b) => (a.createdDate < b.createdDate ? 1 : -1));
+  const upcoming = [...DB.enquiries.filter((e) => e.followUpDate)].sort((a, b) => (a.followUpDate > b.followUpDate ? 1 : -1));
+
+  return `
+  <div class="panel"><div class="panel-head"><h2>Daily visitors — ${fmtDate(DB.todayISO())}</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Purpose</th><th>To meet</th><th>In</th><th>Out</th></tr></thead>
+      <tbody>${todaysVisitors.map((v) => `<tr><td>${esc(v.name)}</td><td class="wrap">${esc(v.purpose)}</td><td>${esc(v.personToMeet)}</td><td>${esc(v.checkInTime)}</td><td>${v.checkOutTime || "—"}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">No visitors today.</td></tr>`}</tbody>
+    </table></div></div>
+  <div class="panel"><div class="panel-head"><h2>Enquiries by status</h2></div>
+    <div class="stat-grid" style="padding:1.2rem;">
+      <div class="stat-card accent-navy"><div class="label">New</div><div class="value">${byStatus.new}</div></div>
+      <div class="stat-card accent-gold"><div class="label">Follow-up</div><div class="value">${byStatus.followup}</div></div>
+      <div class="stat-card accent-green"><div class="label">Converted</div><div class="value">${byStatus.converted}</div></div>
+      <div class="stat-card accent-red"><div class="label">Closed</div><div class="value">${byStatus.closed}</div></div>
+    </div></div>
+  <div class="panel"><div class="panel-head"><h2>Admissions (converted enquiries)</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Class</th><th>Enquired</th></tr></thead>
+      <tbody>${converted.map((e) => `<tr><td>${esc(e.name)}</td><td>${esc(e.phone)}</td><td>${DB.classLabel(e.classInterested)}</td><td>${fmtDate(e.createdDate)}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">No admissions yet.</td></tr>`}</tbody>
+    </table></div></div>
+  <div class="panel"><div class="panel-head"><h2>Appointments (follow-ups)</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Follow-up date</th><th>Status</th></tr></thead>
+      <tbody>${upcoming.map((e) => `<tr><td>${esc(e.name)}</td><td>${esc(e.phone)}</td><td>${fmtDate(e.followUpDate)}</td><td><span class="badge ${enquiryStatusBadge[e.status]}">${enquiryStatusLabel[e.status]}</span></td></tr>`).join("") || `<tr><td colspan="4" class="empty">No follow-ups scheduled.</td></tr>`}</tbody>
+    </table></div></div>`;
 }
 
 /* ---------------- boot ---------------- */

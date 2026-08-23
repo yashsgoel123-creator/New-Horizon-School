@@ -35,6 +35,7 @@ export async function ensureStandardClasses() {
 export const DB = {
   classes: [], teachers: [], parents: [], students: [],
   attendance: [], marks: [], fees: [], announcements: [], homework: [], feeRules: [],
+  receptionists: [], enquiries: [], visitors: [], gatepasses: [], messages: [],
   admin: { id: "admin1", name: "Admin Office" },
 
   todayISO: () => new Date().toISOString().slice(0, 10),
@@ -94,6 +95,28 @@ export const DB = {
   feesFor(studentId) { return this.fees.filter((f) => f.studentId === studentId); },
   announcementsFor(audience) { return this.announcements.filter((a) => a.audience === "all" || a.audience === audience); },
   homeworkForClass(classId) { return this.homework.filter((h) => h.classId === classId); },
+  receptionistById(id) { return this.receptionists.find((r) => r.id === id); },
+  enquiryById(id) { return this.enquiries.find((e) => e.id === id); },
+
+  // ---- global search: student name/roll/admission no, parent phone, enquiry id/name/phone ----
+  globalSearch(qRaw) {
+    const q = (qRaw || "").trim().toLowerCase();
+    if (!q) return { students: [], parents: [], enquiries: [] };
+    const students = this.students.filter((s) =>
+      s.name.toLowerCase().includes(q) ||
+      String(s.roll).includes(q) ||
+      (s.admissionNo || "").toLowerCase().includes(q)
+    );
+    const parents = this.parents.filter((p) =>
+      p.name.toLowerCase().includes(q) || (p.phone || "").includes(q)
+    );
+    const enquiries = this.enquiries.filter((e) =>
+      e.id.toLowerCase().includes(q) ||
+      e.name.toLowerCase().includes(q) ||
+      (e.phone || "").includes(q)
+    );
+    return { students, parents, enquiries };
+  },
 
   // ---- writes: every one of these goes straight to Firestore.
   // The onSnapshot listeners set up in subscribeAll() pick the
@@ -103,16 +126,17 @@ export const DB = {
   // insensitive) already exists, the student links to them. Otherwise
   // a new parent record is created — and if parentEmail+parentPassword
   // were given, a real login is created for them too.
-  async addStudent(name, classId, roll, parentName, parentEmail, parentPassword) {
+  async addStudent(name, classId, roll, admissionNo, parentName, parentPhone, parentEmail, parentPassword) {
     let parentId = null;
     const cleanName = (parentName || "").trim();
     if (cleanName) {
       const existing = this.parents.find((p) => p.name.trim().toLowerCase() === cleanName.toLowerCase());
       if (existing) {
         parentId = existing.id;
+        if (parentPhone && !existing.phone) await updateDoc(doc(db, "parents", existing.id), { phone: parentPhone.trim() });
       } else {
         const pRef = doc(collection(db, "parents"));
-        await setDoc(pRef, { name: cleanName, phone: "", username: "" });
+        await setDoc(pRef, { name: cleanName, phone: (parentPhone || "").trim(), username: "" });
         parentId = pRef.id;
         if (parentEmail && parentPassword) {
           const uid = await createLoginAccount(parentEmail.trim(), parentPassword);
@@ -121,7 +145,7 @@ export const DB = {
       }
     }
     const ref = doc(collection(db, "students"));
-    await setDoc(ref, { name, classId, roll: Number(roll), parentId, dob: "" });
+    await setDoc(ref, { name, classId, roll: Number(roll), admissionNo: (admissionNo || "").trim(), parentId, dob: "", admissionStatus: "Enrolled" });
   },
   async removeStudent(id) { await deleteDoc(doc(db, "students", id)); },
 
@@ -218,12 +242,71 @@ export const DB = {
     await batch.commit();
     return count;
   },
+
+  // ---- Reception staff (created by admin, same pattern as teachers) ----
+  async addReceptionist(name, phone, email, password) {
+    const ref = doc(collection(db, "receptionists"));
+    await setDoc(ref, { name, phone });
+    if (email && password) {
+      const uid = await createLoginAccount(email.trim(), password);
+      await setDoc(doc(db, "users", uid), { role: "reception", refId: ref.id, name });
+    }
+    return ref.id;
+  },
+  async removeReceptionist(id) { await deleteDoc(doc(db, "receptionists", id)); },
+
+  // ---- Admissions / Enquiries ----
+  async addEnquiry(name, phone, email, classInterested, source) {
+    const ref = doc(collection(db, "enquiries"));
+    await setDoc(ref, {
+      name, phone, email: email || "", classInterested, source: source || "",
+      status: "new", followUpDate: "", followUpNotes: "",
+      admissionFormReceived: false,
+      documents: { birthCertificate: false, transferCertificate: false, photos: false, idProof: false },
+      createdDate: this.todayISO(),
+    });
+    return ref.id;
+  },
+  async updateEnquiry(id, patch) { await updateDoc(doc(db, "enquiries", id), patch); },
+  async removeEnquiry(id) { await deleteDoc(doc(db, "enquiries", id)); },
+
+  // ---- Visitor management ----
+  async checkInVisitor(name, phone, purpose, personToMeet) {
+    const ref = doc(collection(db, "visitors"));
+    const now = new Date();
+    await setDoc(ref, {
+      name, phone: phone || "", purpose, personToMeet,
+      date: this.todayISO(), checkInTime: now.toTimeString().slice(0, 5), checkOutTime: "",
+    });
+    return ref.id;
+  },
+  async checkOutVisitor(id) {
+    const now = new Date();
+    await updateDoc(doc(db, "visitors", id), { checkOutTime: now.toTimeString().slice(0, 5) });
+  },
+  visitorsToday() { const today = this.todayISO(); return this.visitors.filter((v) => v.date === today); },
+
+  // ---- Gate passes ----
+  async addGatepass(studentId, reason, issuedBy) {
+    const ref = doc(collection(db, "gatepasses"));
+    const now = new Date();
+    const data = { studentId, reason, issuedBy, date: this.todayISO(), time: now.toTimeString().slice(0, 5) };
+    await setDoc(ref, data);
+    return { id: ref.id, ...data };
+  },
+
+  // ---- Parent messages (separate from school-wide announcements) ----
+  async sendParentMessage(parentId, studentId, title, body, sentBy) {
+    const ref = doc(collection(db, "messages"));
+    await setDoc(ref, { parentId, studentId, title, body, sentBy, date: this.todayISO() });
+  },
+  messagesForParent(parentId) { return this.messages.filter((m) => m.parentId === parentId).sort((a, b) => (a.date < b.date ? 1 : -1)); },
 };
 
 // ---------------------------------------------------------
 // Live sync: mirrors each Firestore collection into DB.<name>
 // ---------------------------------------------------------
-const COLLECTIONS = ["classes", "teachers", "parents", "students", "attendance", "marks", "fees", "announcements", "homework", "feeRules"];
+const COLLECTIONS = ["classes", "teachers", "parents", "students", "attendance", "marks", "fees", "announcements", "homework", "feeRules", "receptionists", "enquiries", "visitors", "gatepasses", "messages"];
 
 export function subscribeAll(onChange) {
   const unsubs = COLLECTIONS.map((name) =>
