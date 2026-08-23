@@ -1186,7 +1186,7 @@ function bindReceptionVisitors() {
 function receptionFeesHTML(r) {
   const classOptions = `<option value="">All classes</option>` + DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
   return `<div class="panel">
-    <div class="panel-head"><h2>Fee status (view only)</h2>
+    <div class="panel-head"><h2>Fee status</h2>
       <div class="pill-filter"><select id="rc-fee-class">${classOptions}</select><input type="text" id="rc-fee-q" placeholder="Search by name…" style="width:200px;"></div>
     </div>
     <div class="table-wrap" id="rc-fee-results"></div>
@@ -1201,10 +1201,15 @@ function renderReceptionFeeResults() {
     .filter(({ s }) => !classId || s?.classId === classId)
     .filter(({ s }) => !q || (s?.name || "").toLowerCase().includes(q))
     .sort((a, b) => (a.s?.name || "").localeCompare(b.s?.name || ""))
-    .map(({ f, s }) => `<tr><td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td></tr>`)
+    .map(({ f, s }) => `<tr><td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td><td>${f.status !== "paid" ? `<button class="btn sm outline" data-rc-mark-paid="${f.id}">Mark Paid</button>` : "—"}</td></tr>`)
     .join("");
-  $("#rc-fee-results").innerHTML = `<table><thead><tr><th>Student</th><th>Class</th><th>Term</th><th>Amount</th><th>Due date</th><th>Status</th></tr></thead>
-    <tbody>${rows || `<tr><td colspan="6" class="empty">No matching fee records.</td></tr>`}</tbody></table>`;
+  $("#rc-fee-results").innerHTML = `<table><thead><tr><th>Student</th><th>Class</th><th>Term</th><th>Amount</th><th>Due date</th><th>Status</th><th></th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="7" class="empty">No matching fee records.</td></tr>`}</tbody></table>`;
+  $all("[data-rc-mark-paid]", $("#rc-fee-results")).forEach((btn) => btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try { await DB.markFeePaid(btn.dataset.rcMarkPaid); toast("Marked as paid."); }
+    catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+  }));
 }
 function bindReceptionFees(r) {
   renderReceptionFeeResults();
