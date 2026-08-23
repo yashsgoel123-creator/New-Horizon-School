@@ -266,15 +266,22 @@ td.wrap{white-space:normal;}
 }
 .gatepass-card .gp-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--gold);padding-bottom:.6rem;margin-bottom:.8rem;}
 .gatepass-card .gp-head .gp-title{font-family:var(--font-display);font-size:1.1rem;color:var(--navy-dark);}
-.gatepass-card .gp-row{display:flex;justify-content:space-between;font-size:.85rem;padding:.25rem 0;border-bottom:1px dashed var(--line);}
-.gatepass-card .gp-row .k{color:var(--ink-soft);}
-.gatepass-card .gp-row .v{font-weight:600;}
+.gatepass-card .gp-row{display:flex;justify-content:space-between;gap:1rem;font-size:.85rem;padding:.25rem 0;border-bottom:1px dashed var(--line);}
+.gatepass-card .gp-row .k{color:var(--ink-soft);flex:0 0 auto;}
+.gatepass-card .gp-row .v{font-weight:600;text-align:right;word-break:break-word;}
 @media print{
+  @page{ margin:12mm; }
+  body{ margin:0; }
   body *{visibility:hidden;}
   .print-only, .print-only *{visibility:visible;}
   .print-only{
-    position:fixed;top:1.5cm;left:50%;transform:translateX(-50%);
-    width:380px;max-width:90vw;padding:0;margin:0;
+    position:absolute;top:0;left:0;width:100%;
+    text-align:center;padding-top:6mm;
+  }
+  .print-only .gatepass-card{
+    display:inline-block;text-align:left;
+    width:320px;max-width:80%;margin:0 auto;
+    box-sizing:border-box;
   }
   #toast{display:none;}
 }

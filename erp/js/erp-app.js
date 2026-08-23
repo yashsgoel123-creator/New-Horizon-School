@@ -500,11 +500,15 @@ function renderFeeFilterResults() {
     .filter(({ s }) => !App.feesFilter.classId || s?.classId === App.feesFilter.classId)
     .filter(({ s }) => !q || (s?.name || "").toLowerCase().includes(q))
     .sort((a, b) => (a.s?.name || "").localeCompare(b.s?.name || ""))
-    .map(({ f, s }) => `<tr><td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td><td>${f.status !== "paid" ? `<button class="btn sm outline" data-mark-paid="${f.id}">Mark Paid</button>` : "—"}</td></tr>`)
+    .map(({ f, s }) => `<tr><td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td><td>${f.status !== "paid" ? `<button class="btn sm outline" data-mark-paid="${f.id}">Mark Paid</button>` : `<button class="btn sm outline" data-unmark-paid="${f.id}">Unmark Paid</button>`}</td></tr>`)
     .join("");
   $("#fee-filter-results").innerHTML = `<table><thead><tr><th>Student</th><th>Class</th><th>Term</th><th>Amount</th><th>Due date</th><th>Status</th><th></th></tr></thead>
     <tbody>${rows || `<tr><td colspan="7" class="empty">No matching fee records.</td></tr>`}</tbody></table>`;
   $all("[data-mark-paid]", $("#fee-filter-results")).forEach((btn) => btn.addEventListener("click", async () => { await DB.markFeePaid(btn.dataset.markPaid); toast("Marked as paid."); }));
+  $all("[data-unmark-paid]", $("#fee-filter-results")).forEach((btn) => btn.addEventListener("click", async () => {
+    if (!confirm("Unmark this fee as paid? It will show as pending again.")) return;
+    await DB.unmarkFeePaid(btn.dataset.unmarkPaid); toast("Marked as pending.");
+  }));
 }
 function bindAdminFees() {
   renderFeeFilterResults();
@@ -1274,17 +1278,19 @@ function renderGatepassRecords() {
 function showGatepassPreview(g) {
   const s = DB.studentById(g.studentId);
   $("#gatepass-preview").innerHTML = `
-    <div class="gatepass-card print-only">
-      <div class="gp-head"><div class="gp-title">New Horizon School — Gate Pass</div></div>
-      <div class="gp-row"><span class="k">Student</span><span class="v">${esc(s?.name || "—")}</span></div>
-      <div class="gp-row"><span class="k">Class</span><span class="v">${DB.classLabel(s?.classId)}</span></div>
-      <div class="gp-row"><span class="k">Roll No.</span><span class="v">${s?.roll ?? "—"}</span></div>
-      <div class="gp-row"><span class="k">Reason</span><span class="v">${esc(g.reason)}</span></div>
-      <div class="gp-row"><span class="k">Picked up by</span><span class="v">${esc(g.pickupName || "—")}</span></div>
-      <div class="gp-row"><span class="k">Relation</span><span class="v">${esc(g.pickupRelation || "—")}</span></div>
-      <div class="gp-row"><span class="k">Date</span><span class="v">${fmtDate(g.date)}</span></div>
-      <div class="gp-row"><span class="k">Time</span><span class="v">${esc(g.time)}</span></div>
-      <div class="gp-row"><span class="k">Issued by</span><span class="v">${esc(g.issuedBy)}</span></div>
+    <div class="print-only">
+      <div class="gatepass-card">
+        <div class="gp-head"><div class="gp-title">New Horizon School — Gate Pass</div></div>
+        <div class="gp-row"><span class="k">Student</span><span class="v">${esc(s?.name || "—")}</span></div>
+        <div class="gp-row"><span class="k">Class</span><span class="v">${DB.classLabel(s?.classId)}</span></div>
+        <div class="gp-row"><span class="k">Roll No.</span><span class="v">${s?.roll ?? "—"}</span></div>
+        <div class="gp-row"><span class="k">Reason</span><span class="v">${esc(g.reason)}</span></div>
+        <div class="gp-row"><span class="k">Picked up by</span><span class="v">${esc(g.pickupName || "—")}</span></div>
+        <div class="gp-row"><span class="k">Relation</span><span class="v">${esc(g.pickupRelation || "—")}</span></div>
+        <div class="gp-row"><span class="k">Date</span><span class="v">${fmtDate(g.date)}</span></div>
+        <div class="gp-row"><span class="k">Time</span><span class="v">${esc(g.time)}</span></div>
+        <div class="gp-row"><span class="k">Issued by</span><span class="v">${esc(g.issuedBy)}</span></div>
+      </div>
     </div>
     <div class="gatepass-card" style="border:none;padding-top:0;">
       <button class="btn gold" id="gp-print-btn" style="margin-top:.8rem;">Print Gate Pass</button>

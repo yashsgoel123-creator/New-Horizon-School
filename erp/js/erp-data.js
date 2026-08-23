@@ -212,6 +212,7 @@ export const DB = {
   },
 
   async markFeePaid(feeId) { await updateDoc(doc(db, "fees", feeId), { status: "paid" }); },
+  async unmarkFeePaid(feeId) { await updateDoc(doc(db, "fees", feeId), { status: "pending" }); },
 
   async addAnnouncement(title, body, audience, postedBy) {
     const ref = doc(collection(db, "announcements"));
