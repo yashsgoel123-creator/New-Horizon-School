@@ -192,6 +192,10 @@ export const DB = {
     const ref = doc(collection(db, "announcements"));
     await setDoc(ref, { title, body, audience, date: this.todayISO(), postedBy });
   },
+  async updateAnnouncement(id, { title, body, audience }) {
+    await updateDoc(doc(db, "announcements", id), { title, body, audience });
+  },
+  async removeAnnouncement(id) { await deleteDoc(doc(db, "announcements", id)); },
 
   async addHomework(classId, subject, description, dueDate, postedBy) {
     const ref = doc(collection(db, "homework"));

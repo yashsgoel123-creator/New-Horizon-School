@@ -9,6 +9,7 @@ const App = {
   feesFilter: { classId: "", q: "" },
   attFilter: { classId: "", q: "" },
   hwEditId: null,
+  annEditId: null,
 };
 let unsubscribeData = null;
 
@@ -462,23 +463,56 @@ function bindAdminFees() {
 
 function adminAnnouncementsHTML() {
   const sorted = [...DB.announcements].sort((a, b) => (a.date < b.date ? 1 : -1));
-  const rows = sorted.map((a) => `<div class="panel-body" style="border-bottom:1px solid var(--line);"><div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;"><div style="font-weight:600;">${esc(a.title)}</div><span class="badge navy">${esc(a.audience)}</span></div><p style="margin:.4rem 0;">${esc(a.body)}</p><div style="font-size:.75rem;color:var(--ink-soft);">${fmtDate(a.date)} · ${esc(a.postedBy)}</div></div>`).join("");
-  return `<div class="panel"><div class="panel-head"><h2>Post an announcement</h2></div>
+  const editing = App.annEditId ? DB.announcements.find((a) => a.id === App.annEditId) : null;
+  const audienceOptions = (val) => `<option value="all" ${val==="all"?"selected":""}>Everyone</option><option value="parents" ${val==="parents"?"selected":""}>Parents only</option><option value="teachers" ${val==="teachers"?"selected":""}>Teachers only</option>`;
+  const rows = sorted.map((a) => `
+    <div class="panel-body" style="border-bottom:1px solid var(--line);">
+      <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+        <div style="font-weight:600;">${esc(a.title)}</div>
+        <span class="badge navy">${esc(a.audience)}</span>
+      </div>
+      <p style="margin:.4rem 0;">${esc(a.body)}</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+        <div style="font-size:.75rem;color:var(--ink-soft);">${fmtDate(a.date)} · ${esc(a.postedBy)}</div>
+        <div><button class="btn sm outline" data-edit-ann="${a.id}">Edit</button> <button class="btn sm danger" data-delete-ann="${a.id}">Delete</button></div>
+      </div>
+    </div>`).join("");
+  return `<div class="panel"><div class="panel-head"><h2>${editing ? "Edit announcement" : "Post an announcement"}</h2></div>
     <div class="panel-body"><form id="add-ann-form">
-      <label>Title</label><input type="text" id="an-title" required>
-      <label>Message</label><textarea id="an-body" required></textarea>
-      <label>Audience</label><select id="an-audience"><option value="all">Everyone</option><option value="parents">Parents only</option><option value="teachers">Teachers only</option></select>
-      <button class="btn gold" type="submit" style="margin-top:.4rem;">Post Announcement</button>
+      <label>Title</label><input type="text" id="an-title" required value="${editing ? esc(editing.title) : ""}">
+      <label>Message</label><textarea id="an-body" required>${editing ? esc(editing.body) : ""}</textarea>
+      <label>Audience</label><select id="an-audience">${audienceOptions(editing ? editing.audience : "all")}</select>
+      <button class="btn gold" type="submit" style="margin-top:.4rem;">${editing ? "Update Announcement" : "Post Announcement"}</button>
+      ${editing ? `<button type="button" class="btn outline" id="ann-cancel-edit" style="margin-top:.4rem;margin-left:.5rem;">Cancel</button>` : ""}
     </form></div></div>
   <div class="panel"><div class="panel-head"><h2>All announcements</h2></div>${rows || `<div class="empty">Nothing posted yet.</div>`}</div>`;
 }
 function bindAdminAnnouncements() {
   $("#add-ann-form").addEventListener("submit", async (e) => {
     e.preventDefault(); setBusy(e.target, true);
-    try { await DB.addAnnouncement($("#an-title").value.trim(), $("#an-body").value.trim(), $("#an-audience").value, DB.admin.name); toast("Announcement posted."); }
-    catch (err) { toast("Couldn't post — " + err.message); }
+    try {
+      if (App.annEditId) {
+        await DB.updateAnnouncement(App.annEditId, { title: $("#an-title").value.trim(), body: $("#an-body").value.trim(), audience: $("#an-audience").value });
+        toast("Announcement updated.");
+        App.annEditId = null;
+      } else {
+        await DB.addAnnouncement($("#an-title").value.trim(), $("#an-body").value.trim(), $("#an-audience").value, DB.admin.name);
+        toast("Announcement posted.");
+      }
+    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
     setBusy(e.target, false);
   });
+  $all("[data-edit-ann]").forEach((btn) => btn.addEventListener("click", () => { App.annEditId = btn.dataset.editAnn; renderAdminView("announcements"); window.scrollTo(0, 0); }));
+  $all("[data-delete-ann]").forEach((btn) => btn.addEventListener("click", async () => {
+    if (!confirm("Delete this announcement?")) return;
+    try {
+      await DB.removeAnnouncement(btn.dataset.deleteAnn);
+      if (App.annEditId === btn.dataset.deleteAnn) App.annEditId = null;
+      toast("Announcement deleted.");
+    } catch (err) { toast("Couldn't delete — " + friendlyAuthError(err)); }
+  }));
+  const cancelBtn = $("#ann-cancel-edit");
+  if (cancelBtn) cancelBtn.addEventListener("click", () => { App.annEditId = null; renderAdminView("announcements"); });
   const seedBtn = $("#seed-btn");
   if (seedBtn) seedBtn.addEventListener("click", async () => { seedBtn.disabled = true; seedBtn.textContent = "Loading…"; await seedIfEmpty(); toast("Sample data loaded."); });
 }
