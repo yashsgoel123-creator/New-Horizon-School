@@ -97,6 +97,7 @@ export const DB = {
   homeworkForClass(classId) { return this.homework.filter((h) => h.classId === classId); },
   receptionistById(id) { return this.receptionists.find((r) => r.id === id); },
   enquiryById(id) { return this.enquiries.find((e) => e.id === id); },
+  gatepassById(id) { return this.gatepasses.find((g) => g.id === id); },
 
   // ---- global search: student name/roll/admission no, parent phone, enquiry id/name/phone ----
   globalSearch(qRaw) {
@@ -287,10 +288,10 @@ export const DB = {
   visitorsToday() { const today = this.todayISO(); return this.visitors.filter((v) => v.date === today); },
 
   // ---- Gate passes ----
-  async addGatepass(studentId, reason, issuedBy) {
+  async addGatepass(studentId, reason, pickupName, pickupRelation, issuedBy) {
     const ref = doc(collection(db, "gatepasses"));
     const now = new Date();
-    const data = { studentId, reason, issuedBy, date: this.todayISO(), time: now.toTimeString().slice(0, 5) };
+    const data = { studentId, reason, pickupName: pickupName || "", pickupRelation: pickupRelation || "", issuedBy, date: this.todayISO(), time: now.toTimeString().slice(0, 5) };
     await setDoc(ref, data);
     return { id: ref.id, ...data };
   },

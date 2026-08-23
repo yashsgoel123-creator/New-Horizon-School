@@ -11,6 +11,7 @@ const App = {
   hwEditId: null,
   annEditId: null,
   searchQuery: "",
+  gatepassFilter: { classId: "", q: "", roll: "", date: "" },
 };
 let unsubscribeData = null;
 
@@ -162,22 +163,41 @@ function bindNav(portal, renderFn) {
    ========================================================= */
 function renderAdminView(view) {
   const titles = {
-    dashboard: ["Dashboard", "School-wide overview"], students: ["Students", "Manage student records"],
+    dashboard: ["Dashboard", "School-wide overview"], search: ["Search", "Find a student, parent, or enquiry"],
+    students: ["Students", "Manage student records"],
     teachers: ["Teachers", "Manage staff records"], "reception-staff": ["Reception Staff", "Manage front-desk logins"], classes: ["Classes", "Sections and class teachers"],
-    attendance: ["Attendance", "School-wide attendance overview"], fees: ["Fee Management", "Track dues and collection"],
+    "take-attendance": ["Take Attendance", "Mark today's attendance for any class"],
+    attendance: ["Attendance Overview", "School-wide attendance overview"],
+    "marks-entry": ["Enter Marks", "Record exam marks for any class"],
+    homework: ["Homework", "Post and manage homework for any class"],
+    admissions: ["Admissions / Enquiry", "New enquiries and admission follow-ups"],
+    visitors: ["Visitor Management", "Check visitors in and out"],
+    gatepass: ["Gate Pass", "Generate and search gate pass records"],
+    fees: ["Fee Management", "Track dues and collection"],
     announcements: ["Announcements", "Post notices to staff and parents"],
+    messages: ["Messages", "Message parents directly"],
+    reports: ["Reports", "Daily activity at a glance"],
   };
   $("#admin-title").textContent = titles[view][0];
   $("#admin-subtitle").textContent = titles[view][1];
   const c = $("#admin-content");
   if (view === "dashboard") c.innerHTML = adminDashboardHTML();
+  else if (view === "search") { c.innerHTML = receptionSearchHTML(); bindReceptionSearch(); }
   else if (view === "students") { c.innerHTML = adminStudentsHTML(); bindAdminStudents(); }
   else if (view === "teachers") { c.innerHTML = adminTeachersHTML(); bindAdminTeachers(); }
   else if (view === "reception-staff") { c.innerHTML = adminReceptionHTML(); bindAdminReception(); }
   else if (view === "classes") { c.innerHTML = adminClassesHTML(); bindAdminClasses(); }
+  else if (view === "take-attendance") { c.innerHTML = adminTakeAttendanceHTML(); bindAdminTakeAttendance(); }
   else if (view === "attendance") { c.innerHTML = adminAttendanceHTML(); bindAdminAttendance(); }
+  else if (view === "marks-entry") { c.innerHTML = adminMarksHTML(); bindAdminMarks(); }
+  else if (view === "homework") { c.innerHTML = adminHomeworkHTML(); bindAdminHomework(); }
+  else if (view === "admissions") { c.innerHTML = receptionAdmissionsHTML(); bindReceptionAdmissions(); }
+  else if (view === "visitors") { c.innerHTML = receptionVisitorsHTML(); bindReceptionVisitors(); }
+  else if (view === "gatepass") { c.innerHTML = gatepassSectionHTML(); bindGatepassSection(DB.admin.name); }
   else if (view === "fees") { c.innerHTML = adminFeesHTML(); bindAdminFees(); }
   else if (view === "announcements") { c.innerHTML = adminAnnouncementsHTML(); bindAdminAnnouncements(); }
+  else if (view === "messages") { c.innerHTML = receptionCommunicationHTML(); bindReceptionCommunication(DB.admin); }
+  else if (view === "reports") c.innerHTML = receptionReportsHTML();
 }
 
 function adminReceptionHTML() {
@@ -760,6 +780,115 @@ function teacherStudentsHTML(t) {
 }
 
 /* =========================================================
+   ADMIN — classroom tools (same as Teacher, but for any class)
+   ========================================================= */
+function adminTakeAttendanceHTML() {
+  const classOptions = DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
+  return `<div class="panel"><div class="panel-head"><h2>Mark attendance</h2>
+    <div class="pill-filter"><select id="att-class">${classOptions || `<option value="">No classes yet</option>`}</select><input type="date" id="att-date" value="${DB.todayISO()}"></div></div>
+    <div class="panel-body"><div class="att-list" id="att-list"></div><button class="btn gold" id="save-att" style="margin-top:1rem;">Save Attendance</button></div>
+  </div>`;
+}
+function bindAdminTakeAttendance() {
+  renderAttendanceList();
+  $("#att-class").addEventListener("change", renderAttendanceList);
+  $("#att-date").addEventListener("change", renderAttendanceList);
+  $("#save-att").addEventListener("click", async (e) => {
+    const classId = $("#att-class").value, date = $("#att-date").value;
+    const entries = $all(".att-row", $("#att-list")).map((row) => ({ studentId: row.dataset.student, status: $(".att-toggle .on", row)?.dataset.status || "present" }));
+    e.target.disabled = true;
+    try { await DB.markAttendance(classId, date, entries, DB.admin.id); toast(`Attendance saved for ${DB.classLabel(classId)}.`); }
+    catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    e.target.disabled = false;
+  });
+}
+
+function adminMarksHTML() {
+  const classOptions = DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
+  return `<div class="panel"><div class="panel-head"><h2>Enter marks</h2>
+    <div class="pill-filter"><select id="mk-class">${classOptions || `<option value="">No classes yet</option>`}</select><input type="text" id="mk-subject" placeholder="Subject" value="Mathematics" style="width:140px;"><input type="text" id="mk-exam" value="Term 2" style="width:140px;"><input type="number" id="mk-max" value="50" style="width:90px;"></div></div>
+    <div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Student</th><th>Roll</th><th style="width:140px;">Marks</th></tr></thead><tbody id="mk-body"></tbody></table></div>
+    <button class="btn gold" id="save-marks" style="margin-top:1rem;">Save Marks</button></div>
+  </div>`;
+}
+function renderAdminMarksTable() {
+  const classId = $("#mk-class").value, subject = $("#mk-subject").value.trim(), exam = $("#mk-exam").value.trim();
+  const students = DB.studentsInClass(classId);
+  $("#mk-body").innerHTML = students.map((s) => {
+    const existing = DB.marks.find((m) => m.studentId === s.id && m.subject === subject && m.exam === exam);
+    return `<tr data-student="${s.id}"><td>${esc(s.name)}</td><td>${s.roll}</td><td><input type="number" min="0" class="mk-input" value="${existing ? existing.marks : ""}" style="margin:0;"></td></tr>`;
+  }).join("") || `<tr><td colspan="3" class="empty">No students in this class.</td></tr>`;
+}
+function bindAdminMarks() {
+  renderAdminMarksTable();
+  $("#mk-class").addEventListener("change", renderAdminMarksTable);
+  $("#mk-subject").addEventListener("change", renderAdminMarksTable);
+  $("#mk-exam").addEventListener("change", renderAdminMarksTable);
+  $("#save-marks").addEventListener("click", async (e) => {
+    const subject = $("#mk-subject").value.trim();
+    const max = Number($("#mk-max").value) || 50, exam = $("#mk-exam").value.trim() || "Term";
+    if (!subject) { toast("Enter a subject first."); return; }
+    e.target.disabled = true;
+    let count = 0;
+    try {
+      for (const row of $all("tr", $("#mk-body"))) {
+        const input = row.querySelector(".mk-input");
+        if (input && input.value !== "") { await DB.addMarks(row.dataset.student, subject, exam, Number(input.value), max); count++; }
+      }
+      toast(`Saved marks for ${count} student(s).`);
+    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    e.target.disabled = false;
+  });
+}
+
+function adminHomeworkHTML() {
+  const classOptions = DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
+  const list = [...DB.homework].sort(sortByPostedRecentFirst);
+  const editing = App.hwEditId ? DB.homework.find((h) => h.id === App.hwEditId) : null;
+  return `<div class="panel"><div class="panel-head"><h2>${editing ? "Edit homework" : "Assign homework"}</h2></div>
+    <div class="panel-body"><form id="hw-form">
+      <div class="form-row"><div><label>Class</label><select id="hw-class">${classOptions || `<option value="">No classes yet</option>`}</select></div><div><label>Subject</label><input type="text" id="hw-subject" required value="${editing ? esc(editing.subject) : ""}"></div></div>
+      <label>Due date</label><input type="date" id="hw-due" value="${editing ? editing.dueDate : DB.isoDaysAgo(-3)}">
+      <label>Details</label><textarea id="hw-desc" required>${editing ? esc(editing.description) : ""}</textarea>
+      <button class="btn gold" type="submit">${editing ? "Update Homework" : "Post Homework"}</button>
+      ${editing ? `<button type="button" class="btn outline" id="hw-cancel-edit" style="margin-left:.5rem;">Cancel</button>` : ""}
+    </form></div></div>
+  <div class="panel"><div class="panel-head"><h2>All posted homework</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>Class</th><th>Subject</th><th>Details</th><th>Posted</th><th>Due</th><th></th></tr></thead>
+      <tbody>${list.map((h) => `<tr><td>${DB.classLabel(h.classId)}</td><td>${esc(h.subject)}</td><td class="wrap">${esc(h.description)}</td><td>${fmtDate(h.postedDate)}</td><td>${fmtDate(h.dueDate)}</td><td style="white-space:nowrap;"><button class="btn sm outline" data-edit-hw="${h.id}">Edit</button> <button class="btn sm danger" data-delete-hw="${h.id}">Delete</button></td></tr>`).join("") || `<tr><td colspan="6" class="empty">Nothing posted yet.</td></tr>`}</tbody>
+    </table></div></div>`;
+}
+function bindAdminHomework() {
+  const editing = App.hwEditId ? DB.homework.find((h) => h.id === App.hwEditId) : null;
+  if (editing) { $("#hw-class").value = editing.classId; }
+  $("#hw-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); setBusy(e.target, true);
+    try {
+      if (App.hwEditId) {
+        await DB.updateHomework(App.hwEditId, { classId: $("#hw-class").value, description: $("#hw-desc").value.trim(), dueDate: $("#hw-due").value });
+        toast("Homework updated.");
+        App.hwEditId = null;
+      } else {
+        await DB.addHomework($("#hw-class").value, $("#hw-subject").value.trim(), $("#hw-desc").value.trim(), $("#hw-due").value, DB.admin.id);
+        toast("Homework posted.");
+      }
+    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    setBusy(e.target, false);
+  });
+  $all("[data-edit-hw]").forEach((btn) => btn.addEventListener("click", () => { App.hwEditId = btn.dataset.editHw; renderAdminView("homework"); window.scrollTo(0, 0); }));
+  $all("[data-delete-hw]").forEach((btn) => btn.addEventListener("click", async () => {
+    if (!confirm("Delete this homework?")) return;
+    try {
+      await DB.removeHomework(btn.dataset.deleteHw);
+      if (App.hwEditId === btn.dataset.deleteHw) App.hwEditId = null;
+      toast("Homework deleted.");
+    } catch (err) { toast("Couldn't delete — " + friendlyAuthError(err)); }
+  }));
+  const cancelBtn = $("#hw-cancel-edit");
+  if (cancelBtn) cancelBtn.addEventListener("click", () => { App.hwEditId = null; renderAdminView("homework"); });
+}
+
+/* =========================================================
    PARENT PORTAL
    ========================================================= */
 function currentParent() { return DB.parentById(App.userId); }
@@ -1056,23 +1185,13 @@ function bindReceptionVisitors() {
 
 function receptionFeesHTML(r) {
   const classOptions = `<option value="">All classes</option>` + DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
-  const studentOptions = [...DB.students].sort((a, b) => a.name.localeCompare(b.name)).map((s) => `<option value="${s.id}">${esc(s.name)} — ${DB.classLabel(s.classId)}</option>`).join("");
   return `<div class="panel">
     <div class="panel-head"><h2>Fee status (view only)</h2>
       <div class="pill-filter"><select id="rc-fee-class">${classOptions}</select><input type="text" id="rc-fee-q" placeholder="Search by name…" style="width:200px;"></div>
     </div>
     <div class="table-wrap" id="rc-fee-results"></div>
   </div>
-  <div class="panel"><div class="panel-head"><h2>Generate gate pass</h2></div>
-    <div class="panel-body">
-      <form id="gatepass-form">
-        <label>Student</label><select id="gp-student" required><option value="">— select student —</option>${studentOptions}</select>
-        <label>Reason</label><input type="text" id="gp-reason" required placeholder="e.g. Half-day leave, Picked up by parent">
-        <button class="btn gold" type="submit">Generate Gate Pass</button>
-      </form>
-      <div id="gatepass-preview"></div>
-    </div>
-  </div>`;
+  ${gatepassSectionHTML()}`;
 }
 function renderReceptionFeeResults() {
   const classId = $("#rc-fee-class").value;
@@ -1091,30 +1210,98 @@ function bindReceptionFees(r) {
   renderReceptionFeeResults();
   $("#rc-fee-class").addEventListener("change", renderReceptionFeeResults);
   $("#rc-fee-q").addEventListener("input", renderReceptionFeeResults);
+  bindGatepassSection(r?.name || "Reception");
+}
+
+/* ---------- Gate pass: reusable in both Reception and Admin ---------- */
+function gatepassSectionHTML() {
+  const studentOptions = [...DB.students].sort((a, b) => a.name.localeCompare(b.name)).map((s) => `<option value="${s.id}">${esc(s.name)} — ${DB.classLabel(s.classId)}</option>`).join("");
+  const classOptions = `<option value="">All classes</option>` + DB.classesSorted().map((c) => `<option value="${c.id}" ${App.gatepassFilter.classId===c.id?"selected":""}>${esc(DB.classLabel(c.id))}</option>`).join("");
+  return `<div class="panel"><div class="panel-head"><h2>Generate gate pass</h2></div>
+    <div class="panel-body">
+      <form id="gatepass-form">
+        <label>Student</label><select id="gp-student" required><option value="">— select student —</option>${studentOptions}</select>
+        <label>Reason</label><input type="text" id="gp-reason" required placeholder="e.g. Half-day leave, Medical appointment">
+        <div class="form-row">
+          <div><label>Picked up by</label><input type="text" id="gp-pickup-name" required placeholder="Name of person taking the student"></div>
+          <div><label>Relation to student</label><input type="text" id="gp-pickup-relation" required placeholder="e.g. Mother, Father, Guardian, Driver"></div>
+        </div>
+        <button class="btn gold" type="submit">Generate Gate Pass</button>
+      </form>
+      <div id="gatepass-preview"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Gate pass records</h2>
+      <div class="pill-filter">
+        <select id="gp-filter-class">${classOptions}</select>
+        <input type="text" id="gp-filter-q" placeholder="Search by name…" value="${esc(App.gatepassFilter.q)}" style="width:170px;">
+        <input type="text" id="gp-filter-roll" placeholder="Roll no." value="${esc(App.gatepassFilter.roll)}" style="width:90px;">
+        <input type="date" id="gp-filter-date" value="${App.gatepassFilter.date}">
+      </div>
+    </div>
+    <div class="table-wrap" id="gp-records"></div>
+  </div>`;
+}
+function renderGatepassRecords() {
+  const { classId, q, roll, date } = App.gatepassFilter;
+  const query = q.trim().toLowerCase();
+  const rows = DB.gatepasses
+    .map((g) => ({ g, s: DB.studentById(g.studentId) }))
+    .filter(({ s }) => !classId || s?.classId === classId)
+    .filter(({ s }) => !query || (s?.name || "").toLowerCase().includes(query))
+    .filter(({ s }) => !roll || String(s?.roll ?? "").includes(roll))
+    .filter(({ g }) => !date || g.date === date)
+    .sort((a, b) => (a.g.date < b.g.date ? 1 : -1))
+    .map(({ g, s }) => `<tr>
+      <td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${s?.roll ?? "—"}</td>
+      <td class="wrap">${esc(g.reason)}</td><td>${esc(g.pickupName || "—")}</td><td>${esc(g.pickupRelation || "—")}</td>
+      <td>${fmtDate(g.date)}</td><td>${esc(g.time)}</td><td>${esc(g.issuedBy)}</td>
+      <td><button class="btn sm outline" data-print-gp="${g.id}">Print</button></td>
+    </tr>`).join("");
+  $("#gp-records").innerHTML = `<table><thead><tr><th>Student</th><th>Class</th><th>Roll</th><th>Reason</th><th>Picked up by</th><th>Relation</th><th>Date</th><th>Time</th><th>Issued by</th><th></th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="10" class="empty">No matching gate passes.</td></tr>`}</tbody></table>`;
+  $all("[data-print-gp]", $("#gp-records")).forEach((btn) => btn.addEventListener("click", () => {
+    const g = DB.gatepassById(btn.dataset.printGp);
+    if (g) { showGatepassPreview(g); window.print(); }
+  }));
+}
+function showGatepassPreview(g) {
+  const s = DB.studentById(g.studentId);
+  $("#gatepass-preview").innerHTML = `
+    <div class="gatepass-card print-only">
+      <div class="gp-head"><div class="gp-title">New Horizon School — Gate Pass</div></div>
+      <div class="gp-row"><span class="k">Student</span><span class="v">${esc(s?.name || "—")}</span></div>
+      <div class="gp-row"><span class="k">Class</span><span class="v">${DB.classLabel(s?.classId)}</span></div>
+      <div class="gp-row"><span class="k">Roll No.</span><span class="v">${s?.roll ?? "—"}</span></div>
+      <div class="gp-row"><span class="k">Reason</span><span class="v">${esc(g.reason)}</span></div>
+      <div class="gp-row"><span class="k">Picked up by</span><span class="v">${esc(g.pickupName || "—")}</span></div>
+      <div class="gp-row"><span class="k">Relation</span><span class="v">${esc(g.pickupRelation || "—")}</span></div>
+      <div class="gp-row"><span class="k">Date</span><span class="v">${fmtDate(g.date)}</span></div>
+      <div class="gp-row"><span class="k">Time</span><span class="v">${esc(g.time)}</span></div>
+      <div class="gp-row"><span class="k">Issued by</span><span class="v">${esc(g.issuedBy)}</span></div>
+    </div>
+    <div class="gatepass-card" style="border:none;padding-top:0;">
+      <button class="btn gold" id="gp-print-btn" style="margin-top:.8rem;">Print Gate Pass</button>
+    </div>`;
+  $("#gp-print-btn").addEventListener("click", () => window.print());
+}
+function bindGatepassSection(actorName) {
+  renderGatepassRecords();
   $("#gatepass-form").addEventListener("submit", async (e) => {
     e.preventDefault(); setBusy(e.target, true);
     try {
       const studentId = $("#gp-student").value;
-      const s = DB.studentById(studentId);
-      const gp = await DB.addGatepass(studentId, $("#gp-reason").value.trim(), r?.name || "Reception");
-      $("#gatepass-preview").innerHTML = `
-        <div class="gatepass-card print-only">
-          <div class="gp-head"><div class="gp-title">New Horizon School — Gate Pass</div></div>
-          <div class="gp-row"><span class="k">Student</span><span class="v">${esc(s.name)}</span></div>
-          <div class="gp-row"><span class="k">Class</span><span class="v">${DB.classLabel(s.classId)}</span></div>
-          <div class="gp-row"><span class="k">Reason</span><span class="v">${esc(gp.reason)}</span></div>
-          <div class="gp-row"><span class="k">Date</span><span class="v">${fmtDate(gp.date)}</span></div>
-          <div class="gp-row"><span class="k">Time</span><span class="v">${esc(gp.time)}</span></div>
-          <div class="gp-row"><span class="k">Issued by</span><span class="v">${esc(gp.issuedBy)}</span></div>
-        </div>
-        <div class="gatepass-card" style="border:none;padding-top:0;">
-          <button class="btn gold" id="gp-print-btn" style="margin-top:.8rem;">Print Gate Pass</button>
-        </div>`;
-      $("#gp-print-btn").addEventListener("click", () => window.print());
+      const gp = await DB.addGatepass(studentId, $("#gp-reason").value.trim(), $("#gp-pickup-name").value.trim(), $("#gp-pickup-relation").value.trim(), actorName);
+      showGatepassPreview(gp);
       toast("Gate pass generated.");
     } catch (err) { toast("Couldn't generate — " + friendlyAuthError(err)); }
     setBusy(e.target, false);
   });
+  $("#gp-filter-class").addEventListener("change", (e) => { App.gatepassFilter.classId = e.target.value; renderGatepassRecords(); });
+  $("#gp-filter-q").addEventListener("input", (e) => { App.gatepassFilter.q = e.target.value; renderGatepassRecords(); });
+  $("#gp-filter-roll").addEventListener("input", (e) => { App.gatepassFilter.roll = e.target.value; renderGatepassRecords(); });
+  $("#gp-filter-date").addEventListener("change", (e) => { App.gatepassFilter.date = e.target.value; renderGatepassRecords(); });
 }
 
 function receptionCommunicationHTML() {
