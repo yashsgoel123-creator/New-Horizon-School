@@ -9,6 +9,7 @@ import {
 import {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
   createUserWithEmailAndPassword, signOut as secondarySignOut,
+  EmailAuthProvider, reauthenticateWithCredential, updatePassword,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
@@ -45,6 +46,17 @@ export async function createLoginAccount(email, password) {
   const uid = cred.user.uid;
   await secondarySignOut(sAuth); // clears the throwaway session only — admin stays signed in on `auth`
   return uid;
+}
+
+// Lets the currently signed-in user (any role) change their own
+// password. Firebase requires a "recent" login for this, so we
+// re-verify their current password first.
+export async function changeOwnPassword(currentPassword, newPassword) {
+  const user = auth.currentUser;
+  if (!user || !user.email) throw new Error("You need to be signed in to change your password.");
+  const cred = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, cred);
+  await updatePassword(user, newPassword);
 }
 
 export {

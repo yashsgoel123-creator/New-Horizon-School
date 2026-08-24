@@ -42,7 +42,7 @@
           <input type="password" id="login-password" required autocomplete="current-password">
           <button type="submit" class="btn gold" style="width:100%;justify-content:center;margin-top:.3rem;">Sign in &rarr;</button>
         </form>
-        <p style="font-size:.75rem;margin-top:1rem;">First time setting this up? See <code>README.md</code> for how the admin office creates logins for staff and parents.</p>
+        
       </div>
     </div>
   </div>
@@ -83,6 +83,7 @@
       <div class="erp-user">
         <div class="avatar">A</div>
         <div class="who"><div class="n">Admin Office</div><div class="r">Administrator</div></div>
+        <a href="#" class="pw-link" data-change-password="admin">Password</a>
         <a href="#" class="logout" data-logout>Log out</a>
       </div>
     </aside>
@@ -121,6 +122,7 @@
       <div class="erp-user">
         <div class="avatar" id="teacher-avatar">T</div>
         <div class="who"><div class="n" id="teacher-name">—</div><div class="r" id="teacher-subject">Teacher</div></div>
+        <a href="#" class="pw-link" data-change-password="teacher">Password</a>
         <a href="#" class="logout" data-logout>Log out</a>
       </div>
     </aside>
@@ -131,6 +133,7 @@
           <div><h1 id="teacher-title">Dashboard</h1><div class="sub" id="teacher-subtitle">Your classroom, today</div></div>
         </div>
         <div class="today" id="teacher-date"></div>
+        <div class="notif-wrap" id="teacher-notif"></div>
       </div>
       <div class="erp-content" id="teacher-content"></div>
     </div>
@@ -154,11 +157,13 @@
         <button class="nav-item" data-view="fees"><span class="ico">&#8377;</span> Fees</button>
         <button class="nav-item" data-view="homework"><span class="ico">&#128218;</span> Homework</button>
         <div class="section-label">School</div>
+        <button class="nav-item" data-view="messages"><span class="ico">&#128172;</span> Messages</button>
         <button class="nav-item" data-view="announcements"><span class="ico">&#128276;</span> Announcements</button>
       </nav>
       <div class="erp-user">
         <div class="avatar" id="parent-avatar">P</div>
         <div class="who"><div class="n" id="parent-name">—</div><div class="r">Parent</div></div>
+        <a href="#" class="pw-link" data-change-password="parent">Password</a>
         <a href="#" class="logout" data-logout>Log out</a>
       </div>
     </aside>
@@ -169,6 +174,7 @@
           <div><h1 id="parent-title">Dashboard</h1><div class="sub" id="parent-subtitle">Welcome back</div></div>
         </div>
         <div class="today" id="parent-date"></div>
+        <div class="notif-wrap" id="parent-notif"></div>
       </div>
       <div class="erp-content" id="parent-content"></div>
     </div>
@@ -199,6 +205,7 @@
       <div class="erp-user">
         <div class="avatar" id="reception-avatar">R</div>
         <div class="who"><div class="n" id="reception-name">—</div><div class="r">Front Desk</div></div>
+        <a href="#" class="pw-link" data-change-password="reception">Password</a>
         <a href="#" class="logout" data-logout>Log out</a>
       </div>
     </aside>
@@ -209,6 +216,7 @@
           <div><h1 id="reception-title">Dashboard</h1><div class="sub" id="reception-subtitle">Front desk overview</div></div>
         </div>
         <div class="today" id="reception-date"></div>
+        <div class="notif-wrap" id="reception-notif"></div>
       </div>
       <div class="erp-content" id="reception-content"></div>
     </div>

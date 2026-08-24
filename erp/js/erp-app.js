@@ -1,7 +1,7 @@
 /* =========================================================
    New Horizon School — ERP App Logic (Firebase-connected)
    ========================================================= */
-import { DB, subscribeAll, login, logout, watchAuth, seedIfEmpty, ensureStandardClasses } from "./erp-data.js";
+import { DB, subscribeAll, login, logout, watchAuth, seedIfEmpty, ensureStandardClasses, changeOwnPassword } from "./erp-data.js";
 
 const App = {
   role: null, userId: null, name: null, activeChildId: null,
@@ -12,6 +12,11 @@ const App = {
   annEditId: null,
   searchQuery: "",
   gatepassFilter: { classId: "", q: "", roll: "", date: "" },
+  stuEditId: null,
+  teacherEditId: null,
+  receptionEditId: null,
+  feeEditId: null,
+  gatepassCanDelete: false,
 };
 let unsubscribeData = null;
 
@@ -74,6 +79,64 @@ function initLogin() {
     $all(".erp-sidebar").forEach((s) => s.classList.remove("open"));
     $all(".sidebar-overlay").forEach((o) => o.classList.remove("show"));
   }));
+
+  $all("[data-change-password]").forEach((el) => el.addEventListener("click", (e) => {
+    e.preventDefault();
+    openChangePassword(el.dataset.changePassword);
+  }));
+}
+
+/* ---------- Change password (all portals) ---------- */
+function changePasswordHTML() {
+  return `<div class="panel"><div class="panel-head"><h2>Change password</h2></div>
+    <div class="panel-body">
+      <div class="login-err" id="pw-err"></div>
+      <form id="change-pw-form">
+        <label>Current password</label><input type="password" id="pw-current" required autocomplete="current-password">
+        <label>New password</label><input type="password" id="pw-new" required minlength="6" autocomplete="new-password">
+        <label>Confirm new password</label><input type="password" id="pw-confirm" required minlength="6" autocomplete="new-password">
+        <button class="btn gold" type="submit">Update Password</button>
+        <button type="button" class="btn outline" id="pw-cancel" style="margin-left:.5rem;">Cancel</button>
+      </form>
+    </div>
+  </div>`;
+}
+function openChangePassword(portal) {
+  const titleEl = $(`#${portal}-title`), subEl = $(`#${portal}-subtitle`), contentEl = $(`#${portal}-content`);
+  if (titleEl) titleEl.textContent = "Change Password";
+  if (subEl) subEl.textContent = "Update your own sign-in password";
+  contentEl.innerHTML = changePasswordHTML();
+  $all(`#${portal}-nav .nav-item`).forEach((b) => b.classList.remove("active"));
+  $(`#${portal}-sidebar`)?.classList.remove("open");
+  $(`#${portal}-overlay`)?.classList.remove("show");
+
+  $("#change-pw-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errEl = $("#pw-err");
+    errEl.classList.remove("show");
+    const current = $("#pw-current").value, next = $("#pw-new").value, confirm = $("#pw-confirm").value;
+    if (next !== confirm) { errEl.textContent = "New password and confirmation don't match."; errEl.classList.add("show"); return; }
+    if (next.length < 6) { errEl.textContent = "New password must be at least 6 characters."; errEl.classList.add("show"); return; }
+    setBusy(e.target, true);
+    try {
+      await changeOwnPassword(current, next);
+      toast("Password updated.");
+      returnToLastView(portal);
+    } catch (err) {
+      errEl.textContent = friendlyAuthError(err);
+      errEl.classList.add("show");
+    }
+    setBusy(e.target, false);
+  });
+  $("#pw-cancel").addEventListener("click", () => returnToLastView(portal));
+}
+function returnToLastView(portal) {
+  const view = App.lastView[portal] || "dashboard";
+  $all(`#${portal}-nav .nav-item`).forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+  if (portal === "admin") renderAdminView(view);
+  else if (portal === "teacher") renderTeacherView(view);
+  else if (portal === "parent") renderParentView(view);
+  else if (portal === "reception") renderReceptionView(view);
 }
 
 function friendlyAuthError(err) {
@@ -130,19 +193,51 @@ function updateTeacherHeader() {
   $("#teacher-name").textContent = t.name;
   $("#teacher-subject").textContent = `${t.subject} Teacher`;
   $("#teacher-avatar").textContent = t.name.replace(/^(Mrs\.|Mr\.|Ms\.)\s*/, "").charAt(0);
+  renderNotifBell("teacher", App.userId, "teacher-notif");
 }
 function updateParentHeader() {
   const p = DB.parentById(App.userId);
   if (!p) return;
   $("#parent-name").textContent = p.name;
   $("#parent-avatar").textContent = p.name.charAt(0);
+  renderNotifBell("parent", App.userId, "parent-notif");
 }
 function updateReceptionHeader() {
   const r = DB.receptionistById(App.userId);
   if (!r) return;
   $("#reception-name").textContent = r.name;
   $("#reception-avatar").textContent = r.name.charAt(0);
+  renderNotifBell("reception", App.userId, "reception-notif");
 }
+
+/* ---------- Notification bell (Parent / Teacher / Reception) ---------- */
+function renderNotifBell(role, id, containerId) {
+  const el = $(`#${containerId}`);
+  if (!el) return;
+  const notifs = DB.notificationsFor(role, id);
+  const unread = notifs.filter((n) => !DB.isNotifRead(n, id)).length;
+  const wasOpen = $(`#${containerId}-dropdown`)?.classList.contains("open");
+  el.innerHTML = `
+    <button type="button" class="notif-bell" id="${containerId}-btn">&#128276;${unread ? `<span class="notif-badge">${unread > 9 ? "9+" : unread}</span>` : ""}</button>
+    <div class="notif-dropdown${wasOpen ? " open" : ""}" id="${containerId}-dropdown">
+      ${notifs.length ? notifs.slice(0, 25).map((n) => `
+        <div class="notif-item ${DB.isNotifRead(n, id) ? "" : "unread"}" data-notif-id="${n.id}">
+          <div class="notif-title">${esc(n.title)}</div>
+          <div class="notif-body">${esc(n.body)}</div>
+          <div class="notif-meta">${fmtDate(n.date)} · ${esc(n.time || "")}</div>
+        </div>`).join("") : `<div class="notif-empty">No notifications yet.</div>`}
+    </div>`;
+  $(`#${containerId}-btn`).addEventListener("click", (e) => {
+    e.stopPropagation();
+    $all(".notif-dropdown.open").forEach((d) => { if (d.id !== `${containerId}-dropdown`) d.classList.remove("open"); });
+    $(`#${containerId}-dropdown`).classList.toggle("open");
+  });
+  $all(".notif-item", el).forEach((item) => item.addEventListener("click", async () => {
+    item.classList.remove("unread");
+    await DB.markNotificationRead(item.dataset.notifId, id);
+  }));
+}
+document.addEventListener("click", () => { $all(".notif-dropdown.open").forEach((d) => d.classList.remove("open")); });
 
 function bindNav(portal, renderFn) {
   const nav = $(`#${portal}-nav`);
@@ -192,28 +287,31 @@ function renderAdminView(view) {
   else if (view === "marks-entry") { c.innerHTML = adminMarksHTML(); bindAdminMarks(); }
   else if (view === "homework") { c.innerHTML = adminHomeworkHTML(); bindAdminHomework(); }
   else if (view === "admissions") { c.innerHTML = receptionAdmissionsHTML(); bindReceptionAdmissions(); }
-  else if (view === "visitors") { c.innerHTML = receptionVisitorsHTML(); bindReceptionVisitors(); }
-  else if (view === "gatepass") { c.innerHTML = gatepassSectionHTML(); bindGatepassSection(DB.admin.name); }
+  else if (view === "visitors") { c.innerHTML = receptionVisitorsHTML(true); bindReceptionVisitors(); }
+  else if (view === "gatepass") { c.innerHTML = gatepassSectionHTML(true); bindGatepassSection(DB.admin.name, true); }
   else if (view === "fees") { c.innerHTML = adminFeesHTML(); bindAdminFees(); }
   else if (view === "announcements") { c.innerHTML = adminAnnouncementsHTML(); bindAdminAnnouncements(); }
-  else if (view === "messages") { c.innerHTML = receptionCommunicationHTML(); bindReceptionCommunication(DB.admin); }
+  else if (view === "messages") { c.innerHTML = receptionCommunicationHTML(true); bindReceptionCommunication(DB.admin); }
   else if (view === "reports") c.innerHTML = receptionReportsHTML();
 }
 
 function adminReceptionHTML() {
+  const editing = App.receptionEditId ? DB.receptionistById(App.receptionEditId) : null;
   const rows = DB.receptionists.map((r) => `
     <tr><td>${esc(r.name)}</td><td>${esc(r.phone || "")}</td>
-      <td><button class="btn sm danger" data-remove-reception="${r.id}">Remove</button></td></tr>`).join("");
+      <td style="white-space:nowrap;"><button class="btn sm outline" data-edit-reception="${r.id}">Edit</button> <button class="btn sm danger" data-remove-reception="${r.id}">Remove</button></td></tr>`).join("");
   return `
-  <div class="panel"><div class="panel-head"><h2>Add reception staff</h2></div>
+  <div class="panel"><div class="panel-head"><h2>${editing ? `Edit reception staff — ${esc(editing.name)}` : "Add reception staff"}</h2></div>
     <div class="panel-body"><form id="add-reception-form">
-      <div class="form-row"><div><label>Full name</label><input type="text" id="rc-name" required></div><div><label>Phone</label><input type="text" id="rc-phone"></div></div>
+      <div class="form-row"><div><label>Full name</label><input type="text" id="rc-name" required value="${editing ? esc(editing.name) : ""}"></div><div><label>Phone</label><input type="text" id="rc-phone" value="${editing ? esc(editing.phone || "") : ""}"></div></div>
+      ${editing ? `<div class="field-hint">Editing name and phone. Their login email/password is managed separately in Firebase Authentication and doesn't change here.</div>` : `
       <div class="form-row">
         <div><label>Login email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="rc-email" placeholder="for their portal login"></div>
         <div><label>Login password <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="rc-password" placeholder="min. 6 characters"></div>
       </div>
-      <div class="field-hint">Fill in email &amp; password to create their real sign-in right now, the same way as for teachers. Leave both blank to just save the record for later.</div>
-      <button class="btn gold" type="submit">Add Reception Staff</button>
+      <div class="field-hint">Fill in email &amp; password to create their real sign-in right now, the same way as for teachers. Leave both blank to just save the record for later.</div>`}
+      <button class="btn gold" type="submit">${editing ? "Update Reception Staff" : "Add Reception Staff"}</button>
+      ${editing ? `<button type="button" class="btn outline" id="reception-cancel-edit" style="margin-left:.5rem;">Cancel</button>` : ""}
     </form></div>
   </div>
   <div class="panel"><div class="panel-head"><h2>All reception staff (${DB.receptionists.length})</h2></div>
@@ -225,14 +323,23 @@ function bindAdminReception() {
   $("#add-reception-form").addEventListener("submit", async (e) => {
     e.preventDefault(); setBusy(e.target, true);
     try {
-      await DB.addReceptionist($("#rc-name").value.trim(), $("#rc-phone").value.trim(), $("#rc-email").value.trim(), $("#rc-password").value);
-      toast("Reception staff added.");
+      if (App.receptionEditId) {
+        await DB.updateReceptionist(App.receptionEditId, { name: $("#rc-name").value.trim(), phone: $("#rc-phone").value.trim() });
+        toast("Reception staff updated.");
+        App.receptionEditId = null;
+      } else {
+        await DB.addReceptionist($("#rc-name").value.trim(), $("#rc-phone").value.trim(), $("#rc-email").value.trim(), $("#rc-password").value);
+        toast("Reception staff added.");
+      }
     } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
     setBusy(e.target, false);
   });
+  $all("[data-edit-reception]").forEach((btn) => btn.addEventListener("click", () => { App.receptionEditId = btn.dataset.editReception; renderAdminView("reception-staff"); window.scrollTo(0, 0); }));
   $all("[data-remove-reception]").forEach((btn) => btn.addEventListener("click", async () => {
     if (confirm("Remove this reception account?")) { await DB.removeReceptionist(btn.dataset.removeReception); toast("Reception staff removed."); }
   }));
+  const cancelBtn = $("#reception-cancel-edit");
+  if (cancelBtn) cancelBtn.addEventListener("click", () => { App.receptionEditId = null; renderAdminView("reception-staff"); });
 }
 
 function adminDashboardHTML() {
@@ -264,17 +371,19 @@ function adminDashboardHTML() {
 }
 
 function adminStudentsHTML() {
+  const editing = App.stuEditId ? DB.studentById(App.stuEditId) : null;
   const rows = DB.students.map((s) => `
     <tr><td>${esc(s.name)}</td><td>${esc(s.admissionNo || "—")}</td><td>${DB.classLabel(s.classId)}</td><td>${s.roll}</td>
       <td>${esc(DB.parentById(s.parentId)?.name || "Not linked")}</td><td>${DB.attendancePct(s.id) ?? "—"}%</td>
-      <td><button class="btn sm danger" data-remove-student="${s.id}">Remove</button></td></tr>`).join("");
-  const classOptions = DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
+      <td style="white-space:nowrap;"><button class="btn sm outline" data-edit-student="${s.id}">Edit</button> <button class="btn sm danger" data-remove-student="${s.id}">Remove</button></td></tr>`).join("");
+  const classOptions = DB.classesSorted().map((c) => `<option value="${c.id}" ${editing && editing.classId===c.id ? "selected" : ""}>${esc(DB.classLabel(c.id))}</option>`).join("");
   return `
-  <div class="panel"><div class="panel-head"><h2>Add a student</h2></div>
+  <div class="panel"><div class="panel-head"><h2>${editing ? `Edit student — ${esc(editing.name)}` : "Add a student"}</h2></div>
     <div class="panel-body"><form id="add-student-form">
-      <div class="form-row"><div><label>Full name</label><input type="text" id="s-name" required></div><div><label>Roll number</label><input type="number" id="s-roll" required min="1"></div></div>
-      <div class="form-row"><div><label>Admission No. <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="s-admission-no" placeholder="e.g. NH-2026-041"></div>
+      <div class="form-row"><div><label>Full name</label><input type="text" id="s-name" required value="${editing ? esc(editing.name) : ""}"></div><div><label>Roll number</label><input type="number" id="s-roll" required min="1" value="${editing ? editing.roll : ""}"></div></div>
+      <div class="form-row"><div><label>Admission No. <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="s-admission-no" placeholder="e.g. NH-2026-041" value="${editing ? esc(editing.admissionNo || "") : ""}"></div>
         <div><label>Class</label><select id="s-class">${classOptions || `<option value="">No classes yet — set these up on the Classes tab</option>`}</select></div></div>
+      ${editing ? `<div class="field-hint">Editing name, roll, admission no. and class only. To change the linked parent, remove and re-add the student, or edit the parent's own record.</div>` : `
       <div class="form-row">
         <div><label>Parent's name</label><input type="text" id="s-parent-name" placeholder="e.g. Ritu Malhotra"></div>
         <div><label>Parent's phone <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="s-parent-phone" placeholder="10-digit mobile"></div>
@@ -283,8 +392,9 @@ function adminStudentsHTML() {
         <div><label>Parent's email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="s-parent-email" placeholder="for their portal login"></div>
         <div><label>Parent's password <span style="font-weight:400;color:var(--ink-soft);">(optional — only if email is given)</span></label><input type="text" id="s-parent-password" placeholder="min. 6 characters"></div>
       </div>
-      <div class="field-hint">If this parent already exists (same name), the student links to them and no new login is created. If it's a new name, a parent record is created — with a real login too, if you fill in email &amp; password.</div>
-      <button class="btn gold" type="submit">Add Student</button>
+      <div class="field-hint">If this parent already exists (same name), the student links to them and no new login is created. If it's a new name, a parent record is created — with a real login too, if you fill in email &amp; password.</div>`}
+      <button class="btn gold" type="submit">${editing ? "Update Student" : "Add Student"}</button>
+      ${editing ? `<button type="button" class="btn outline" id="stu-cancel-edit" style="margin-left:.5rem;">Cancel</button>` : ""}
     </form></div>
   </div>
   <div class="panel"><div class="panel-head"><h2>All students (${DB.students.length})</h2></div>
@@ -296,20 +406,30 @@ function bindAdminStudents() {
   $("#add-student-form").addEventListener("submit", async (e) => {
     e.preventDefault(); setBusy(e.target, true);
     try {
-      await DB.addStudent(
-        $("#s-name").value.trim(), $("#s-class").value, $("#s-roll").value, $("#s-admission-no").value.trim(),
-        $("#s-parent-name").value.trim(), $("#s-parent-phone").value.trim(), $("#s-parent-email").value.trim(), $("#s-parent-password").value
-      );
-      toast("Student added.");
+      if (App.stuEditId) {
+        await DB.updateStudent(App.stuEditId, { name: $("#s-name").value.trim(), classId: $("#s-class").value, roll: Number($("#s-roll").value), admissionNo: $("#s-admission-no").value.trim() });
+        toast("Student updated.");
+        App.stuEditId = null;
+      } else {
+        await DB.addStudent(
+          $("#s-name").value.trim(), $("#s-class").value, $("#s-roll").value, $("#s-admission-no").value.trim(),
+          $("#s-parent-name").value.trim(), $("#s-parent-phone").value.trim(), $("#s-parent-email").value.trim(), $("#s-parent-password").value
+        );
+        toast("Student added.");
+      }
     } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
     setBusy(e.target, false);
   });
+  $all("[data-edit-student]").forEach((btn) => btn.addEventListener("click", () => { App.stuEditId = btn.dataset.editStudent; renderAdminView("students"); window.scrollTo(0, 0); }));
   $all("[data-remove-student]").forEach((btn) => btn.addEventListener("click", async () => {
     if (confirm("Remove this student from records?")) { await DB.removeStudent(btn.dataset.removeStudent); toast("Student removed."); }
   }));
+  const cancelBtn = $("#stu-cancel-edit");
+  if (cancelBtn) cancelBtn.addEventListener("click", () => { App.stuEditId = null; renderAdminView("students"); });
 }
 
 function adminTeachersHTML() {
+  const editing = App.teacherEditId ? DB.teacherById(App.teacherEditId) : null;
   const classCheckboxes = (t) => DB.classesSorted().map((c) => `
     <label style="display:flex;align-items:center;gap:.4rem;font-weight:400;font-size:.8rem;padding:.15rem 0;">
       <input type="checkbox" data-teacher-class="${t.id}" value="${c.id}" ${(t.classIds||[]).includes(c.id)?"checked":""} style="width:auto;margin:0;">
@@ -318,18 +438,20 @@ function adminTeachersHTML() {
   const rows = DB.teachers.map((t) => `
     <tr><td>${esc(t.name)}</td><td>${esc(t.subject)}</td><td>${esc(t.phone || "")}</td>
       <td class="wrap"><div style="max-height:110px;overflow-y:auto;min-width:160px;">${classCheckboxes(t) || "No classes yet"}</div></td>
-      <td><button class="btn sm danger" data-remove-teacher="${t.id}">Remove</button></td></tr>`).join("");
+      <td style="white-space:nowrap;"><button class="btn sm outline" data-edit-teacher="${t.id}">Edit</button> <button class="btn sm danger" data-remove-teacher="${t.id}">Remove</button></td></tr>`).join("");
   return `
-  <div class="panel"><div class="panel-head"><h2>Add a teacher</h2></div>
+  <div class="panel"><div class="panel-head"><h2>${editing ? `Edit teacher — ${esc(editing.name)}` : "Add a teacher"}</h2></div>
     <div class="panel-body"><form id="add-teacher-form">
-      <div class="form-row"><div><label>Full name</label><input type="text" id="t-name" required></div><div><label>Subject</label><input type="text" id="t-subject" required></div></div>
-      <div class="form-row"><div><label>Phone</label><input type="text" id="t-phone"></div><div><label>Username</label><input type="text" id="t-username"></div></div>
+      <div class="form-row"><div><label>Full name</label><input type="text" id="t-name" required value="${editing ? esc(editing.name) : ""}"></div><div><label>Subject</label><input type="text" id="t-subject" required value="${editing ? esc(editing.subject) : ""}"></div></div>
+      <div class="form-row"><div><label>Phone</label><input type="text" id="t-phone" value="${editing ? esc(editing.phone || "") : ""}"></div><div><label>Username</label><input type="text" id="t-username" value="${editing ? esc(editing.username || "") : ""}"></div></div>
+      ${editing ? `<div class="field-hint">Editing name, subject, phone and username. Their login email/password is managed separately in Firebase Authentication and doesn't change here.</div>` : `
       <div class="form-row">
         <div><label>Login email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="t-email" placeholder="for their portal login"></div>
         <div><label>Login password <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="t-password" placeholder="min. 6 characters"></div>
       </div>
-      <div class="field-hint">Fill in email &amp; password to also create their real sign-in right now — no need to touch the Firebase console. Leave both blank to just save the record for later. Once added, tick which classes they teach in the table below.</div>
-      <button class="btn gold" type="submit">Add Teacher</button>
+      <div class="field-hint">Fill in email &amp; password to also create their real sign-in right now — no need to touch the Firebase console. Leave both blank to just save the record for later. Once added, tick which classes they teach in the table below.</div>`}
+      <button class="btn gold" type="submit">${editing ? "Update Teacher" : "Add Teacher"}</button>
+      ${editing ? `<button type="button" class="btn outline" id="teacher-cancel-edit" style="margin-left:.5rem;">Cancel</button>` : ""}
     </form>
     </div>
   </div>
@@ -343,17 +465,26 @@ function bindAdminTeachers() {
   $("#add-teacher-form").addEventListener("submit", async (e) => {
     e.preventDefault(); setBusy(e.target, true);
     try {
-      await DB.addTeacher(
-        $("#t-name").value.trim(), $("#t-subject").value.trim(), $("#t-phone").value.trim(), $("#t-username").value.trim(),
-        $("#t-email").value.trim(), $("#t-password").value
-      );
-      toast("Teacher added.");
+      if (App.teacherEditId) {
+        await DB.updateTeacherInfo(App.teacherEditId, { name: $("#t-name").value.trim(), subject: $("#t-subject").value.trim(), phone: $("#t-phone").value.trim(), username: $("#t-username").value.trim() });
+        toast("Teacher updated.");
+        App.teacherEditId = null;
+      } else {
+        await DB.addTeacher(
+          $("#t-name").value.trim(), $("#t-subject").value.trim(), $("#t-phone").value.trim(), $("#t-username").value.trim(),
+          $("#t-email").value.trim(), $("#t-password").value
+        );
+        toast("Teacher added.");
+      }
     } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
     setBusy(e.target, false);
   });
+  $all("[data-edit-teacher]").forEach((btn) => btn.addEventListener("click", () => { App.teacherEditId = btn.dataset.editTeacher; renderAdminView("teachers"); window.scrollTo(0, 0); }));
   $all("[data-remove-teacher]").forEach((btn) => btn.addEventListener("click", async () => {
     if (confirm("Remove this teacher from records?")) { await DB.removeTeacher(btn.dataset.removeTeacher); toast("Teacher removed."); }
   }));
+  const cancelBtn = $("#teacher-cancel-edit");
+  if (cancelBtn) cancelBtn.addEventListener("click", () => { App.teacherEditId = null; renderAdminView("teachers"); });
   $all("[data-teacher-class]").forEach((cb) => cb.addEventListener("change", async () => {
     const teacherId = cb.dataset.teacherClass;
     const checked = $all(`[data-teacher-class="${teacherId}"]:checked`).map((c) => c.value);
@@ -475,6 +606,20 @@ function adminFeesHTML() {
     </tr>`;
   }).join("");
 
+  const editing = App.feeEditId ? DB.fees.find((f) => f.id === App.feeEditId) : null;
+  const editPanel = editing ? `<div class="panel">
+    <div class="panel-head"><h2>Edit fee record — ${esc(DB.studentById(editing.studentId)?.name || "—")}</h2></div>
+    <div class="panel-body">
+      <div class="form-row">
+        <div><label>Term</label><input type="text" id="fee-edit-term" value="${esc(editing.term)}"></div>
+        <div><label>Amount</label><input type="number" id="fee-edit-amount" value="${editing.amount}"></div>
+      </div>
+      <label>Due date</label><input type="date" id="fee-edit-due" value="${editing.dueDate || ""}">
+      <button class="btn gold" id="fee-edit-save">Save Changes</button>
+      <button type="button" class="btn outline" id="fee-edit-cancel" style="margin-left:.5rem;">Cancel</button>
+    </div>
+  </div>` : "";
+
   return `<div class="stat-grid">
     <div class="stat-card accent-green"><div class="label">Collected</div><div class="value">&#8377;${collected.toLocaleString("en-IN")}</div></div>
     <div class="stat-card accent-red"><div class="label">Outstanding</div><div class="value">&#8377;${pending.toLocaleString("en-IN")}</div></div>
@@ -486,6 +631,7 @@ function adminFeesHTML() {
     <div class="table-wrap"><table><thead><tr><th>Class</th><th>Term</th><th>Amount</th><th>Due date</th><th></th></tr></thead>
       <tbody>${structureRows || `<tr><td colspan="5" class="empty">No classes yet — set these up on the Classes tab.</td></tr>`}</tbody></table></div>
   </div>
+  ${editPanel}
   <div class="panel">
     <div class="panel-head"><h2>Fee records</h2>
       <div class="pill-filter"><select id="fee-filter-class">${classOptions}</select><input type="text" id="fee-filter-q" placeholder="Search by name…" value="${esc(App.feesFilter.q)}" style="width:200px;"></div>
@@ -500,7 +646,12 @@ function renderFeeFilterResults() {
     .filter(({ s }) => !App.feesFilter.classId || s?.classId === App.feesFilter.classId)
     .filter(({ s }) => !q || (s?.name || "").toLowerCase().includes(q))
     .sort((a, b) => (a.s?.name || "").localeCompare(b.s?.name || ""))
-    .map(({ f, s }) => `<tr><td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td><td>${f.status !== "paid" ? `<button class="btn sm outline" data-mark-paid="${f.id}">Mark Paid</button>` : `<button class="btn sm outline" data-unmark-paid="${f.id}">Unmark Paid</button>`}</td></tr>`)
+    .map(({ f, s }) => `<tr><td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td>
+      <td style="white-space:nowrap;">
+        ${f.status !== "paid" ? `<button class="btn sm outline" data-mark-paid="${f.id}">Mark Paid</button>` : `<button class="btn sm outline" data-unmark-paid="${f.id}">Unmark Paid</button>`}
+        <button class="btn sm outline" data-edit-fee="${f.id}">Edit</button>
+        <button class="btn sm danger" data-delete-fee="${f.id}">Delete</button>
+      </td></tr>`)
     .join("");
   $("#fee-filter-results").innerHTML = `<table><thead><tr><th>Student</th><th>Class</th><th>Term</th><th>Amount</th><th>Due date</th><th>Status</th><th></th></tr></thead>
     <tbody>${rows || `<tr><td colspan="7" class="empty">No matching fee records.</td></tr>`}</tbody></table>`;
@@ -509,11 +660,29 @@ function renderFeeFilterResults() {
     if (!confirm("Unmark this fee as paid? It will show as pending again.")) return;
     await DB.unmarkFeePaid(btn.dataset.unmarkPaid); toast("Marked as pending.");
   }));
+  $all("[data-edit-fee]", $("#fee-filter-results")).forEach((btn) => btn.addEventListener("click", () => { App.feeEditId = btn.dataset.editFee; renderAdminView("fees"); window.scrollTo(0, 0); }));
+  $all("[data-delete-fee]", $("#fee-filter-results")).forEach((btn) => btn.addEventListener("click", async () => {
+    if (!confirm("Delete this fee record? This can't be undone.")) return;
+    await DB.removeFee(btn.dataset.deleteFee); toast("Fee record deleted.");
+  }));
 }
 function bindAdminFees() {
   renderFeeFilterResults();
   $("#fee-filter-class").addEventListener("change", (e) => { App.feesFilter.classId = e.target.value; renderFeeFilterResults(); });
   $("#fee-filter-q").addEventListener("input", (e) => { App.feesFilter.q = e.target.value; renderFeeFilterResults(); });
+
+  const feeEditSave = $("#fee-edit-save");
+  if (feeEditSave) feeEditSave.addEventListener("click", async () => {
+    feeEditSave.disabled = true;
+    try {
+      await DB.updateFee(App.feeEditId, { term: $("#fee-edit-term").value.trim(), amount: Number($("#fee-edit-amount").value), dueDate: $("#fee-edit-due").value });
+      toast("Fee record updated.");
+      App.feeEditId = null;
+    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    feeEditSave.disabled = false;
+  });
+  const feeEditCancel = $("#fee-edit-cancel");
+  if (feeEditCancel) feeEditCancel.addEventListener("click", () => { App.feeEditId = null; renderAdminView("fees"); });
 
   $all("[data-save-rule]").forEach((btn) => btn.addEventListener("click", async () => {
     const classId = btn.dataset.saveRule;
@@ -908,12 +1077,14 @@ function renderParentView(view) {
   const titles = {
     dashboard: ["Dashboard", `Welcome back, ${p.name.split(" ")[0]}`], attendance: ["Attendance", child ? `${child.name}'s attendance record` : ""],
     grades: ["Grades & Report", child ? `${child.name}'s exam performance` : ""], fees: ["Fees", child ? `${child.name}'s fee status` : ""],
-    homework: ["Homework", child ? `Homework for ${DB.classLabel(child.classId)}` : ""], announcements: ["Announcements", "Notices from the school"],
+    homework: ["Homework", child ? `Homework for ${DB.classLabel(child.classId)}` : ""], messages: ["Messages", "Direct messages from the school office"],
+    announcements: ["Announcements", "Notices from the school"],
   };
   $("#parent-title").textContent = titles[view][0];
   $("#parent-subtitle").textContent = titles[view][1];
   const c = $("#parent-content");
 
+  if (view === "messages") { c.innerHTML = parentMessagesHTML(p); return; }
   if (!kids.length) { c.innerHTML = `<div class="empty"><div class="big">&#128100;</div>No student is linked to this parent account yet.<br>Please contact the school office.</div>`; return; }
 
   const switcher = kids.length > 1 ? `<div class="child-switch">${kids.map((k) => `<button data-child="${k.id}" class="${k.id === App.activeChildId ? "active" : ""}">${esc(k.name)} · ${DB.classLabel(k.classId)}</button>`).join("")}</div>` : "";
@@ -965,6 +1136,12 @@ function parentHomeworkHTML(child) {
   const rows = [...DB.homeworkForClass(child.classId)].sort(sortByPostedRecentFirst);
   return `<div class="panel"><div class="panel-head"><h2>Homework for ${DB.classLabel(child.classId)}</h2></div>
     <div class="panel-body">${rows.map((h) => `<div style="margin-bottom:1.1rem;padding-bottom:1.1rem;border-bottom:1px solid var(--line);"><div style="display:flex;justify-content:space-between;gap:1rem;"><strong>${esc(h.subject)}</strong><span style="font-size:.78rem;color:var(--ink-soft);">Due ${fmtDate(h.dueDate)}</span></div><p style="margin:.3rem 0 0;">${esc(h.description)}</p><div style="font-size:.72rem;color:var(--ink-soft);margin-top:.2rem;">Posted ${fmtDate(h.postedDate)}</div></div>`).join("") || `<div class="empty">No homework posted.</div>`}</div></div>`;
+}
+
+function parentMessagesHTML(p) {
+  const rows = DB.messagesForParent(p.id);
+  return `<div class="panel"><div class="panel-head"><h2>Messages from the school office</h2></div>
+    <div class="panel-body">${rows.map((m) => `<div style="margin-bottom:1.1rem;padding-bottom:1.1rem;border-bottom:1px solid var(--line);"><div style="font-weight:600;">${esc(m.title)}</div><p style="margin:.3rem 0;">${esc(m.body)}</p><div style="font-size:.72rem;color:var(--ink-soft);">${fmtDate(m.date)} · ${esc(m.sentBy)}</div></div>`).join("") || `<div class="empty">No messages yet.</div>`}</div></div>`;
 }
 
 function renderAnnouncementsList(list) {
@@ -1157,7 +1334,7 @@ function bindReceptionAdmissions() {
   }));
 }
 
-function receptionVisitorsHTML() {
+function receptionVisitorsHTML(canDelete) {
   const todays = [...DB.visitorsToday()].sort((a, b) => (a.checkInTime < b.checkInTime ? 1 : -1));
   return `<div class="panel"><div class="panel-head"><h2>New visitor entry</h2></div>
     <div class="panel-body"><form id="visitor-form">
@@ -1168,7 +1345,7 @@ function receptionVisitorsHTML() {
     </form></div></div>
   <div class="panel"><div class="panel-head"><h2>Today's visitors (${todays.length})</h2></div>
     <div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Purpose</th><th>To meet</th><th>In</th><th>Out</th><th></th></tr></thead>
-      <tbody>${todays.map((v) => `<tr><td>${esc(v.name)}</td><td>${esc(v.phone || "—")}</td><td class="wrap">${esc(v.purpose)}</td><td>${esc(v.personToMeet)}</td><td>${esc(v.checkInTime)}</td><td>${v.checkOutTime ? esc(v.checkOutTime) : `<span class="visitor-in">In building</span>`}</td><td>${v.checkOutTime ? "—" : `<button class="btn sm outline" data-checkout="${v.id}">Check Out</button>`}</td></tr>`).join("") || `<tr><td colspan="7" class="empty">No visitors yet today.</td></tr>`}</tbody>
+      <tbody>${todays.map((v) => `<tr><td>${esc(v.name)}</td><td>${esc(v.phone || "—")}</td><td class="wrap">${esc(v.purpose)}</td><td>${esc(v.personToMeet)}</td><td>${esc(v.checkInTime)}</td><td>${v.checkOutTime ? esc(v.checkOutTime) : `<span class="visitor-in">In building</span>`}</td><td style="white-space:nowrap;">${v.checkOutTime ? "—" : `<button class="btn sm outline" data-checkout="${v.id}">Check Out</button>`} ${canDelete ? `<button class="btn sm danger" data-delete-visitor="${v.id}">Delete</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="7" class="empty">No visitors yet today.</td></tr>`}</tbody>
     </table></div></div>`;
 }
 function bindReceptionVisitors() {
@@ -1180,6 +1357,9 @@ function bindReceptionVisitors() {
     } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
     setBusy(e.target, false);
   });
+  $all("[data-delete-visitor]").forEach((btn) => btn.addEventListener("click", async () => {
+    if (confirm("Delete this visitor entry?")) { await DB.removeVisitor(btn.dataset.deleteVisitor); toast("Visitor entry deleted."); }
+  }));
   $all("[data-checkout]").forEach((btn) => btn.addEventListener("click", async () => {
     btn.disabled = true;
     try { await DB.checkOutVisitor(btn.dataset.checkout); toast("Visitor checked out."); }
@@ -1223,7 +1403,8 @@ function bindReceptionFees(r) {
 }
 
 /* ---------- Gate pass: reusable in both Reception and Admin ---------- */
-function gatepassSectionHTML() {
+function gatepassSectionHTML(canDelete) {
+  App.gatepassCanDelete = !!canDelete;
   const studentOptions = [...DB.students].sort((a, b) => a.name.localeCompare(b.name)).map((s) => `<option value="${s.id}">${esc(s.name)} — ${DB.classLabel(s.classId)}</option>`).join("");
   const classOptions = `<option value="">All classes</option>` + DB.classesSorted().map((c) => `<option value="${c.id}" ${App.gatepassFilter.classId===c.id?"selected":""}>${esc(DB.classLabel(c.id))}</option>`).join("");
   return `<div class="panel"><div class="panel-head"><h2>Generate gate pass</h2></div>
@@ -1247,6 +1428,7 @@ function gatepassSectionHTML() {
         <input type="text" id="gp-filter-q" placeholder="Search by name…" value="${esc(App.gatepassFilter.q)}" style="width:170px;">
         <input type="text" id="gp-filter-roll" placeholder="Roll no." value="${esc(App.gatepassFilter.roll)}" style="width:90px;">
         <input type="date" id="gp-filter-date" value="${App.gatepassFilter.date}">
+        <button class="btn sm gold" id="gp-filter-search-btn">Search</button>
       </div>
     </div>
     <div class="table-wrap" id="gp-records"></div>
@@ -1266,13 +1448,16 @@ function renderGatepassRecords() {
       <td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${s?.roll ?? "—"}</td>
       <td class="wrap">${esc(g.reason)}</td><td>${esc(g.pickupName || "—")}</td><td>${esc(g.pickupRelation || "—")}</td>
       <td>${fmtDate(g.date)}</td><td>${esc(g.time)}</td><td>${esc(g.issuedBy)}</td>
-      <td><button class="btn sm outline" data-print-gp="${g.id}">Print</button></td>
+      <td style="white-space:nowrap;"><button class="btn sm outline" data-print-gp="${g.id}">Print</button> ${App.gatepassCanDelete ? `<button class="btn sm danger" data-delete-gp="${g.id}">Delete</button>` : ""}</td>
     </tr>`).join("");
   $("#gp-records").innerHTML = `<table><thead><tr><th>Student</th><th>Class</th><th>Roll</th><th>Reason</th><th>Picked up by</th><th>Relation</th><th>Date</th><th>Time</th><th>Issued by</th><th></th></tr></thead>
     <tbody>${rows || `<tr><td colspan="10" class="empty">No matching gate passes.</td></tr>`}</tbody></table>`;
   $all("[data-print-gp]", $("#gp-records")).forEach((btn) => btn.addEventListener("click", () => {
     const g = DB.gatepassById(btn.dataset.printGp);
     if (g) { showGatepassPreview(g); window.print(); }
+  }));
+  $all("[data-delete-gp]", $("#gp-records")).forEach((btn) => btn.addEventListener("click", async () => {
+    if (confirm("Delete this gate pass record?")) { await DB.removeGatepass(btn.dataset.deleteGp); toast("Gate pass record deleted."); }
   }));
 }
 function showGatepassPreview(g) {
@@ -1297,7 +1482,8 @@ function showGatepassPreview(g) {
     </div>`;
   $("#gp-print-btn").addEventListener("click", () => window.print());
 }
-function bindGatepassSection(actorName) {
+function bindGatepassSection(actorName, canDelete) {
+  App.gatepassCanDelete = !!canDelete;
   renderGatepassRecords();
   $("#gatepass-form").addEventListener("submit", async (e) => {
     e.preventDefault(); setBusy(e.target, true);
@@ -1313,10 +1499,15 @@ function bindGatepassSection(actorName) {
   $("#gp-filter-q").addEventListener("input", (e) => { App.gatepassFilter.q = e.target.value; renderGatepassRecords(); });
   $("#gp-filter-roll").addEventListener("input", (e) => { App.gatepassFilter.roll = e.target.value; renderGatepassRecords(); });
   $("#gp-filter-date").addEventListener("change", (e) => { App.gatepassFilter.date = e.target.value; renderGatepassRecords(); });
+  $("#gp-filter-search-btn").addEventListener("click", () => renderGatepassRecords());
 }
 
-function receptionCommunicationHTML() {
+function receptionCommunicationHTML(canManage) {
   const parentOptions = [...DB.parents].sort((a, b) => a.name.localeCompare(b.name)).map((p) => `<option value="${p.id}">${esc(p.name)} (${DB.childrenOf(p.id).map((c) => c.name).join(", ") || "no child linked"})</option>`).join("");
+  const sentPanel = canManage ? `<div class="panel"><div class="panel-head"><h2>Sent messages</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>Parent</th><th>Title</th><th>Message</th><th>Date</th><th>Sent by</th><th></th></tr></thead>
+      <tbody>${[...DB.messages].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).map((m) => `<tr><td>${esc(DB.parentById(m.parentId)?.name || "—")}</td><td>${esc(m.title)}</td><td class="wrap">${esc(m.body)}</td><td>${fmtDate(m.date)}</td><td>${esc(m.sentBy)}</td><td><button class="btn sm danger" data-delete-msg="${m.id}">Delete</button></td></tr>`).join("") || `<tr><td colspan="6" class="empty">No messages sent yet.</td></tr>`}</tbody>
+    </table></div></div>` : "";
   return `<div class="panel"><div class="panel-head"><h2>Message a parent</h2></div>
     <div class="panel-body"><form id="msg-form">
       <label>Parent</label><select id="msg-parent" required><option value="">— select parent —</option>${parentOptions}</select>
@@ -1324,6 +1515,7 @@ function receptionCommunicationHTML() {
       <label>Message</label><textarea id="msg-body" required></textarea>
       <button class="btn gold" type="submit">Send</button>
     </form></div></div>
+  ${sentPanel}
   ${renderAnnouncementsList(DB.announcements)}`;
 }
 function bindReceptionCommunication(r) {
@@ -1338,6 +1530,9 @@ function bindReceptionCommunication(r) {
     } catch (err) { toast("Couldn't send — " + friendlyAuthError(err)); }
     setBusy(e.target, false);
   });
+  $all("[data-delete-msg]").forEach((btn) => btn.addEventListener("click", async () => {
+    if (confirm("Delete this message? It will disappear from the parent's Messages page too.")) { await DB.removeMessage(btn.dataset.deleteMsg); toast("Message deleted."); }
+  }));
 }
 
 function receptionReportsHTML() {

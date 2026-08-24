@@ -10,8 +10,10 @@
 import {
   db, auth, collection, doc, setDoc, updateDoc, deleteDoc,
   onSnapshot, getDocs, getDoc, query, where, writeBatch,
-  signInWithEmailAndPassword, signOut, onAuthStateChanged, createLoginAccount,
+  signInWithEmailAndPassword, signOut, onAuthStateChanged, createLoginAccount, changeOwnPassword,
 } from "./firebase-init.js";
+
+export { changeOwnPassword };
 
 // Standard Indian school class list, Nursery through Class 12.
 // IDs are fixed slugs so ensureStandardClasses() is safe to call
@@ -35,7 +37,7 @@ export async function ensureStandardClasses() {
 export const DB = {
   classes: [], teachers: [], parents: [], students: [],
   attendance: [], marks: [], fees: [], announcements: [], homework: [], feeRules: [],
-  receptionists: [], enquiries: [], visitors: [], gatepasses: [], messages: [],
+  receptionists: [], enquiries: [], visitors: [], gatepasses: [], messages: [], notifications: [],
   admin: { id: "admin1", name: "Admin Office" },
 
   todayISO: () => new Date().toISOString().slice(0, 10),
@@ -98,6 +100,25 @@ export const DB = {
   receptionistById(id) { return this.receptionists.find((r) => r.id === id); },
   enquiryById(id) { return this.enquiries.find((e) => e.id === id); },
   gatepassById(id) { return this.gatepasses.find((g) => g.id === id); },
+
+  // ---- notifications: broadcast (recipientId "all") or targeted at one person ----
+  async notifyRole(recipientRole, recipientId, type, title, body) {
+    const ref = doc(collection(db, "notifications"));
+    const now = new Date();
+    await setDoc(ref, { recipientRole, recipientId, type, title, body, date: this.todayISO(), time: now.toTimeString().slice(0, 5), readBy: [], createdAt: Date.now() });
+  },
+  notificationsFor(role, id) {
+    return this.notifications
+      .filter((n) => n.recipientRole === role && (n.recipientId === id || n.recipientId === "all"))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  },
+  isNotifRead(n, viewerId) { return (n.readBy || []).includes(viewerId); },
+  unreadNotifCount(role, id) { return this.notificationsFor(role, id).filter((n) => !this.isNotifRead(n, id)).length; },
+  async markNotificationRead(notifId, viewerId) {
+    const n = this.notifications.find((x) => x.id === notifId);
+    if (!n || this.isNotifRead(n, viewerId)) return;
+    await updateDoc(doc(db, "notifications", notifId), { readBy: [...(n.readBy || []), viewerId] });
+  },
 
   // ---- global search: student name/roll/admission no, parent phone, enquiry id/name/phone ----
   globalSearch(qRaw) {
@@ -209,14 +230,21 @@ export const DB = {
     const existing = this.marks.find((m) => m.studentId === studentId && m.subject === subject && m.exam === exam);
     const ref = existing ? doc(db, "marks", existing.id) : doc(collection(db, "marks"));
     await setDoc(ref, { studentId, subject, exam, marks, max });
+    const s = this.studentById(studentId);
+    if (s?.parentId) await this.notifyRole("parent", s.parentId, "result", `New result: ${subject}`, `${exam} — ${marks}/${max} for ${s.name}`);
   },
 
   async markFeePaid(feeId) { await updateDoc(doc(db, "fees", feeId), { status: "paid" }); },
   async unmarkFeePaid(feeId) { await updateDoc(doc(db, "fees", feeId), { status: "pending" }); },
+  async updateFee(id, patch) { await updateDoc(doc(db, "fees", id), patch); },
+  async removeFee(id) { await deleteDoc(doc(db, "fees", id)); },
 
   async addAnnouncement(title, body, audience, postedBy) {
     const ref = doc(collection(db, "announcements"));
     await setDoc(ref, { title, body, audience, date: this.todayISO(), postedBy });
+    if (audience === "all" || audience === "parents") await this.notifyRole("parent", "all", "announcement", title, body);
+    if (audience === "all" || audience === "teachers") await this.notifyRole("teacher", "all", "announcement", title, body);
+    if (audience === "all") await this.notifyRole("reception", "all", "announcement", title, body);
   },
   async updateAnnouncement(id, { title, body, audience }) {
     await updateDoc(doc(db, "announcements", id), { title, body, audience });
@@ -226,6 +254,8 @@ export const DB = {
   async addHomework(classId, subject, description, dueDate, postedBy) {
     const ref = doc(collection(db, "homework"));
     await setDoc(ref, { classId, subject, description, dueDate, postedBy, postedDate: this.todayISO(), postedAt: Date.now() });
+    const parentIds = [...new Set(this.studentsInClass(classId).map((s) => s.parentId).filter(Boolean))];
+    for (const pid of parentIds) await this.notifyRole("parent", pid, "homework", `New homework: ${subject}`, description);
   },
   async updateHomework(id, { classId, description, dueDate }) {
     await updateDoc(doc(db, "homework", id), { classId, description, dueDate });
@@ -300,15 +330,24 @@ export const DB = {
   // ---- Parent messages (separate from school-wide announcements) ----
   async sendParentMessage(parentId, studentId, title, body, sentBy) {
     const ref = doc(collection(db, "messages"));
-    await setDoc(ref, { parentId, studentId, title, body, sentBy, date: this.todayISO() });
+    await setDoc(ref, { parentId, studentId, title, body, sentBy, date: this.todayISO(), createdAt: Date.now() });
+    await this.notifyRole("parent", parentId, "message", title, body);
   },
-  messagesForParent(parentId) { return this.messages.filter((m) => m.parentId === parentId).sort((a, b) => (a.date < b.date ? 1 : -1)); },
+  messagesForParent(parentId) { return this.messages.filter((m) => m.parentId === parentId).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); },
+  async removeMessage(id) { await deleteDoc(doc(db, "messages", id)); },
+
+  // ---- edit any record (Admin) ----
+  async updateStudent(id, patch) { await updateDoc(doc(db, "students", id), patch); },
+  async updateTeacherInfo(id, patch) { await updateDoc(doc(db, "teachers", id), patch); },
+  async updateReceptionist(id, patch) { await updateDoc(doc(db, "receptionists", id), patch); },
+  async removeVisitor(id) { await deleteDoc(doc(db, "visitors", id)); },
+  async removeGatepass(id) { await deleteDoc(doc(db, "gatepasses", id)); },
 };
 
 // ---------------------------------------------------------
 // Live sync: mirrors each Firestore collection into DB.<name>
 // ---------------------------------------------------------
-const COLLECTIONS = ["classes", "teachers", "parents", "students", "attendance", "marks", "fees", "announcements", "homework", "feeRules", "receptionists", "enquiries", "visitors", "gatepasses", "messages"];
+const COLLECTIONS = ["classes", "teachers", "parents", "students", "attendance", "marks", "fees", "announcements", "homework", "feeRules", "receptionists", "enquiries", "visitors", "gatepasses", "messages", "notifications"];
 
 export function subscribeAll(onChange) {
   const unsubs = COLLECTIONS.map((name) =>
