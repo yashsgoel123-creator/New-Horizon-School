@@ -2,16 +2,19 @@
    New Horizon School — ERP App Logic (Firebase-connected)
    ========================================================= */
 import { DB, subscribeAll, login, logout, watchAuth, seedIfEmpty, ensureStandardClasses, changeOwnPassword } from "./erp-data.js";
+import { initEmailJS } from "./email-notify.js";
 
 const App = {
   role: null, userId: null, name: null, activeChildId: null,
   lastView: { admin: "dashboard", teacher: "dashboard", parent: "dashboard", reception: "dashboard" },
-  feesFilter: { classId: "", q: "" },
+  feesFilter: { classId: "", q: "", term: "" },
   attFilter: { classId: "", q: "" },
   hwEditId: null,
   annEditId: null,
   searchQuery: "",
   gatepassFilter: { classId: "", q: "", roll: "", date: "" },
+  visitorHistFilter: { date: "", q: "" },
+  enqFilter: { status: "", from: "", to: "", q: "" },
   stuEditId: null,
   teacherEditId: null,
   receptionEditId: null,
@@ -287,7 +290,7 @@ function renderAdminView(view) {
   else if (view === "marks-entry") { c.innerHTML = adminMarksHTML(); bindAdminMarks(); }
   else if (view === "homework") { c.innerHTML = adminHomeworkHTML(); bindAdminHomework(); }
   else if (view === "admissions") { c.innerHTML = receptionAdmissionsHTML(); bindReceptionAdmissions(); }
-  else if (view === "visitors") { c.innerHTML = receptionVisitorsHTML(true); bindReceptionVisitors(); }
+  else if (view === "visitors") { c.innerHTML = receptionVisitorsHTML(true); bindReceptionVisitors(true); }
   else if (view === "gatepass") { c.innerHTML = gatepassSectionHTML(true); bindGatepassSection(DB.admin.name, true); }
   else if (view === "fees") { c.innerHTML = adminFeesHTML(); bindAdminFees(); }
   else if (view === "announcements") { c.innerHTML = adminAnnouncementsHTML(); bindAdminAnnouncements(); }
@@ -304,7 +307,8 @@ function adminReceptionHTML() {
   <div class="panel"><div class="panel-head"><h2>${editing ? `Edit reception staff — ${esc(editing.name)}` : "Add reception staff"}</h2></div>
     <div class="panel-body"><form id="add-reception-form">
       <div class="form-row"><div><label>Full name</label><input type="text" id="rc-name" required value="${editing ? esc(editing.name) : ""}"></div><div><label>Phone</label><input type="text" id="rc-phone" value="${editing ? esc(editing.phone || "") : ""}"></div></div>
-      ${editing ? `<div class="field-hint">Editing name and phone. Their login email/password is managed separately in Firebase Authentication and doesn't change here.</div>` : `
+      ${editing ? `<label>Notification email <span style="font-weight:400;color:var(--ink-soft);">(optional — used for email alerts, doesn't change their login)</span></label><input type="email" id="rc-email" value="${esc(editing.email || "")}">
+      <div class="field-hint">Their login password is managed separately in Firebase Authentication and doesn't change here.</div>` : `
       <div class="form-row">
         <div><label>Login email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="rc-email" placeholder="for their portal login"></div>
         <div><label>Login password <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="rc-password" placeholder="min. 6 characters"></div>
@@ -324,7 +328,7 @@ function bindAdminReception() {
     e.preventDefault(); setBusy(e.target, true);
     try {
       if (App.receptionEditId) {
-        await DB.updateReceptionist(App.receptionEditId, { name: $("#rc-name").value.trim(), phone: $("#rc-phone").value.trim() });
+        await DB.updateReceptionist(App.receptionEditId, { name: $("#rc-name").value.trim(), phone: $("#rc-phone").value.trim(), email: $("#rc-email").value.trim() });
         toast("Reception staff updated.");
         App.receptionEditId = null;
       } else {
@@ -444,7 +448,8 @@ function adminTeachersHTML() {
     <div class="panel-body"><form id="add-teacher-form">
       <div class="form-row"><div><label>Full name</label><input type="text" id="t-name" required value="${editing ? esc(editing.name) : ""}"></div><div><label>Subject</label><input type="text" id="t-subject" required value="${editing ? esc(editing.subject) : ""}"></div></div>
       <div class="form-row"><div><label>Phone</label><input type="text" id="t-phone" value="${editing ? esc(editing.phone || "") : ""}"></div><div><label>Username</label><input type="text" id="t-username" value="${editing ? esc(editing.username || "") : ""}"></div></div>
-      ${editing ? `<div class="field-hint">Editing name, subject, phone and username. Their login email/password is managed separately in Firebase Authentication and doesn't change here.</div>` : `
+      ${editing ? `<label>Notification email <span style="font-weight:400;color:var(--ink-soft);">(optional — used for email alerts, doesn't change their login)</span></label><input type="email" id="t-email" value="${esc(editing.email || "")}">
+      <div class="field-hint">Their login password is managed separately in Firebase Authentication and doesn't change here.</div>` : `
       <div class="form-row">
         <div><label>Login email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="t-email" placeholder="for their portal login"></div>
         <div><label>Login password <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="t-password" placeholder="min. 6 characters"></div>
@@ -466,7 +471,7 @@ function bindAdminTeachers() {
     e.preventDefault(); setBusy(e.target, true);
     try {
       if (App.teacherEditId) {
-        await DB.updateTeacherInfo(App.teacherEditId, { name: $("#t-name").value.trim(), subject: $("#t-subject").value.trim(), phone: $("#t-phone").value.trim(), username: $("#t-username").value.trim() });
+        await DB.updateTeacherInfo(App.teacherEditId, { name: $("#t-name").value.trim(), subject: $("#t-subject").value.trim(), phone: $("#t-phone").value.trim(), username: $("#t-username").value.trim(), email: $("#t-email").value.trim() });
         toast("Teacher updated.");
         App.teacherEditId = null;
       } else {
@@ -591,6 +596,8 @@ function adminFeesHTML() {
   const collected = DB.fees.filter((f) => f.status === "paid").reduce((s, f) => s + f.amount, 0);
   const pending = DB.fees.filter((f) => f.status !== "paid").reduce((s, f) => s + f.amount, 0);
   const classOptions = `<option value="">All classes</option>` + DB.classesSorted().map((c) => `<option value="${c.id}" ${App.feesFilter.classId===c.id?"selected":""}>${esc(DB.classLabel(c.id))}</option>`).join("");
+  const distinctTerms = [...new Set(DB.fees.map((f) => f.term))].sort().reverse();
+  const termOptions = `<option value="">All terms / sessions</option>` + distinctTerms.map((t) => `<option value="${esc(t)}" ${App.feesFilter.term===t?"selected":""}>${esc(t)}</option>`).join("");
 
   const structureRows = DB.classesSorted().map((c) => {
     const rule = DB.feeRuleFor(c.id);
@@ -634,7 +641,11 @@ function adminFeesHTML() {
   ${editPanel}
   <div class="panel">
     <div class="panel-head"><h2>Fee records</h2>
-      <div class="pill-filter"><select id="fee-filter-class">${classOptions}</select><input type="text" id="fee-filter-q" placeholder="Search by name…" value="${esc(App.feesFilter.q)}" style="width:200px;"></div>
+      <div class="pill-filter">
+        <select id="fee-filter-class">${classOptions}</select>
+        <select id="fee-filter-term">${termOptions}</select>
+        <input type="text" id="fee-filter-q" placeholder="Search by name…" value="${esc(App.feesFilter.q)}" style="width:200px;">
+      </div>
     </div>
     <div class="table-wrap" id="fee-filter-results"></div>
   </div>`;
@@ -644,6 +655,7 @@ function renderFeeFilterResults() {
   const rows = DB.fees
     .map((f) => ({ f, s: DB.studentById(f.studentId) }))
     .filter(({ s }) => !App.feesFilter.classId || s?.classId === App.feesFilter.classId)
+    .filter(({ f }) => !App.feesFilter.term || f.term === App.feesFilter.term)
     .filter(({ s }) => !q || (s?.name || "").toLowerCase().includes(q))
     .sort((a, b) => (a.s?.name || "").localeCompare(b.s?.name || ""))
     .map(({ f, s }) => `<tr><td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td>
@@ -669,6 +681,7 @@ function renderFeeFilterResults() {
 function bindAdminFees() {
   renderFeeFilterResults();
   $("#fee-filter-class").addEventListener("change", (e) => { App.feesFilter.classId = e.target.value; renderFeeFilterResults(); });
+  $("#fee-filter-term").addEventListener("change", (e) => { App.feesFilter.term = e.target.value; renderFeeFilterResults(); });
   $("#fee-filter-q").addEventListener("input", (e) => { App.feesFilter.q = e.target.value; renderFeeFilterResults(); });
 
   const feeEditSave = $("#fee-edit-save");
@@ -847,6 +860,9 @@ function teacherMarksHTML(t) {
     <div class="pill-filter"><select id="mk-class">${classOptions}</select><input type="text" id="mk-exam" value="Term 2" style="width:160px;"><input type="number" id="mk-max" value="50" style="width:100px;"></div></div>
     <div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Student</th><th>Roll</th><th style="width:140px;">Marks</th></tr></thead><tbody id="mk-body"></tbody></table></div>
     <button class="btn gold" id="save-marks" style="margin-top:1rem;">Save Marks</button></div>
+  </div>
+  <div class="panel"><div class="panel-head"><h2>Past results for this class</h2></div>
+    <div class="table-wrap" id="mk-history"></div>
   </div>`;
 }
 function renderMarksTable(t) {
@@ -855,6 +871,17 @@ function renderMarksTable(t) {
     const existing = DB.marks.find((m) => m.studentId === s.id && m.subject === t.subject && m.exam === $("#mk-exam").value);
     return `<tr data-student="${s.id}"><td>${esc(s.name)}</td><td>${s.roll}</td><td><input type="number" min="0" class="mk-input" value="${existing ? existing.marks : ""}" style="margin:0;"></td></tr>`;
   }).join("") || `<tr><td colspan="3" class="empty">No students in this class.</td></tr>`;
+  renderMarksHistory(classId);
+}
+function renderMarksHistory(classId) {
+  const studentIds = new Set(DB.studentsInClass(classId).map((s) => s.id));
+  const rows = DB.marks
+    .filter((m) => studentIds.has(m.studentId))
+    .sort((a, b) => a.exam.localeCompare(b.exam) || (DB.studentById(a.studentId)?.name || "").localeCompare(DB.studentById(b.studentId)?.name || ""))
+    .map((m) => `<tr><td>${esc(DB.studentById(m.studentId)?.name || "—")}</td><td>${esc(m.subject)}</td><td>${esc(m.exam)}</td><td>${m.marks} / ${m.max}</td></tr>`)
+    .join("");
+  $("#mk-history").innerHTML = `<table><thead><tr><th>Student</th><th>Subject</th><th>Exam</th><th>Marks</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="4" class="empty">No marks entered for this class yet.</td></tr>`}</tbody></table>`;
 }
 function bindTeacherMarks(t) {
   renderMarksTable(t);
@@ -982,6 +1009,9 @@ function adminMarksHTML() {
     <div class="pill-filter"><select id="mk-class">${classOptions || `<option value="">No classes yet</option>`}</select><input type="text" id="mk-subject" placeholder="Subject" value="Mathematics" style="width:140px;"><input type="text" id="mk-exam" value="Term 2" style="width:140px;"><input type="number" id="mk-max" value="50" style="width:90px;"></div></div>
     <div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Student</th><th>Roll</th><th style="width:140px;">Marks</th></tr></thead><tbody id="mk-body"></tbody></table></div>
     <button class="btn gold" id="save-marks" style="margin-top:1rem;">Save Marks</button></div>
+  </div>
+  <div class="panel"><div class="panel-head"><h2>Past results for this class</h2></div>
+    <div class="table-wrap" id="mk-history"></div>
   </div>`;
 }
 function renderAdminMarksTable() {
@@ -991,6 +1021,7 @@ function renderAdminMarksTable() {
     const existing = DB.marks.find((m) => m.studentId === s.id && m.subject === subject && m.exam === exam);
     return `<tr data-student="${s.id}"><td>${esc(s.name)}</td><td>${s.roll}</td><td><input type="number" min="0" class="mk-input" value="${existing ? existing.marks : ""}" style="margin:0;"></td></tr>`;
   }).join("") || `<tr><td colspan="3" class="empty">No students in this class.</td></tr>`;
+  renderMarksHistory(classId);
 }
 function bindAdminMarks() {
   renderAdminMarksTable();
@@ -1270,8 +1301,42 @@ function bindReceptionStudents() {
 
 function receptionAdmissionsHTML() {
   const classOptions = DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
-  const sorted = [...DB.enquiries].sort((a, b) => (a.createdDate < b.createdDate ? 1 : -1));
+  return `<div class="panel"><div class="panel-head"><h2>New enquiry</h2></div>
+    <div class="panel-body"><form id="enq-form">
+      <div class="form-row"><div><label>Name</label><input type="text" id="enq-name" required></div><div><label>Phone</label><input type="text" id="enq-phone" required></div></div>
+      <div class="form-row"><div><label>Email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="enq-email"></div>
+        <div><label>Class interested in</label><select id="enq-class">${classOptions}</select></div></div>
+      <label>Source <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="enq-source" placeholder="e.g. Walk-in, Phone, Referral, Website">
+      <button class="btn gold" type="submit">Add Enquiry</button>
+    </form></div></div>
+  <div class="panel">
+    <div class="panel-head"><h2>All enquiries (${DB.enquiries.length})</h2>
+      <div class="pill-filter">
+        <select id="enq-filter-status">
+          <option value="">All statuses</option>
+          <option value="new" ${App.enqFilter.status==="new"?"selected":""}>New</option>
+          <option value="followup" ${App.enqFilter.status==="followup"?"selected":""}>Follow-up</option>
+          <option value="converted" ${App.enqFilter.status==="converted"?"selected":""}>Converted</option>
+          <option value="closed" ${App.enqFilter.status==="closed"?"selected":""}>Closed</option>
+        </select>
+        <input type="date" id="enq-filter-from" value="${App.enqFilter.from}" title="From date">
+        <input type="date" id="enq-filter-to" value="${App.enqFilter.to}" title="To date">
+        <input type="text" id="enq-filter-q" placeholder="Search by name or phone…" value="${esc(App.enqFilter.q)}" style="width:190px;">
+      </div>
+    </div>
+    <div id="enq-list"></div>
+  </div>`;
+}
+function renderEnquiriesList() {
+  const { status, from, to, q } = App.enqFilter;
+  const query = q.trim().toLowerCase();
   const docLabel = { birthCertificate: "Birth Certificate", transferCertificate: "Transfer Certificate", photos: "Photographs", idProof: "ID Proof" };
+  const sorted = [...DB.enquiries]
+    .filter((e) => !status || e.status === status)
+    .filter((e) => !from || e.createdDate >= from)
+    .filter((e) => !to || e.createdDate <= to)
+    .filter((e) => !query || e.name.toLowerCase().includes(query) || (e.phone || "").includes(query))
+    .sort((a, b) => (a.createdDate < b.createdDate ? 1 : -1));
   const rows = sorted.map((e) => `
     <div class="panel-body" style="border-bottom:1px solid var(--line);">
       <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:center;">
@@ -1297,25 +1362,10 @@ function receptionAdmissionsHTML() {
       <div class="doc-checklist">${Object.keys(docLabel).map((k) => `<label><input type="checkbox" data-enq-doc="${e.id}" data-doc-key="${k}" ${e.documents?.[k] ? "checked" : ""}> ${docLabel[k]}</label>`).join("")}</div>
       <div style="margin-top:.7rem;"><button class="btn sm outline" data-enq-save="${e.id}">Save Changes</button> <button class="btn sm danger" data-enq-delete="${e.id}">Delete Enquiry</button></div>
     </div>`).join("");
-  return `<div class="panel"><div class="panel-head"><h2>New enquiry</h2></div>
-    <div class="panel-body"><form id="enq-form">
-      <div class="form-row"><div><label>Name</label><input type="text" id="enq-name" required></div><div><label>Phone</label><input type="text" id="enq-phone" required></div></div>
-      <div class="form-row"><div><label>Email <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="email" id="enq-email"></div>
-        <div><label>Class interested in</label><select id="enq-class">${classOptions}</select></div></div>
-      <label>Source <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label><input type="text" id="enq-source" placeholder="e.g. Walk-in, Phone, Referral, Website">
-      <button class="btn gold" type="submit">Add Enquiry</button>
-    </form></div></div>
-  <div class="panel"><div class="panel-head"><h2>All enquiries (${DB.enquiries.length})</h2></div>${rows || `<div class="empty">No enquiries yet.</div>`}</div>`;
+  $("#enq-list").innerHTML = rows || `<div class="empty">No matching enquiries.</div>`;
+  bindEnquiryRowActions();
 }
-function bindReceptionAdmissions() {
-  $("#enq-form").addEventListener("submit", async (e) => {
-    e.preventDefault(); setBusy(e.target, true);
-    try {
-      await DB.addEnquiry($("#enq-name").value.trim(), $("#enq-phone").value.trim(), $("#enq-email").value.trim(), $("#enq-class").value, $("#enq-source").value.trim());
-      toast("Enquiry added.");
-    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
-    setBusy(e.target, false);
-  });
+function bindEnquiryRowActions() {
   $all("[data-enq-save]").forEach((btn) => btn.addEventListener("click", async () => {
     const id = btn.dataset.enqSave;
     const status = $(`[data-enq-status="${id}"]`).value;
@@ -1333,6 +1383,22 @@ function bindReceptionAdmissions() {
     if (confirm("Delete this enquiry?")) { await DB.removeEnquiry(btn.dataset.enqDelete); toast("Enquiry deleted."); }
   }));
 }
+function bindReceptionAdmissions() {
+  renderEnquiriesList();
+  $("#enq-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); setBusy(e.target, true);
+    try {
+      await DB.addEnquiry($("#enq-name").value.trim(), $("#enq-phone").value.trim(), $("#enq-email").value.trim(), $("#enq-class").value, $("#enq-source").value.trim());
+      toast("Enquiry added.");
+      e.target.reset();
+    } catch (err) { toast("Couldn't save — " + friendlyAuthError(err)); }
+    setBusy(e.target, false);
+  });
+  $("#enq-filter-status").addEventListener("change", (e) => { App.enqFilter.status = e.target.value; renderEnquiriesList(); });
+  $("#enq-filter-from").addEventListener("change", (e) => { App.enqFilter.from = e.target.value; renderEnquiriesList(); });
+  $("#enq-filter-to").addEventListener("change", (e) => { App.enqFilter.to = e.target.value; renderEnquiriesList(); });
+  $("#enq-filter-q").addEventListener("input", (e) => { App.enqFilter.q = e.target.value; renderEnquiriesList(); });
+}
 
 function receptionVisitorsHTML(canDelete) {
   const todays = [...DB.visitorsToday()].sort((a, b) => (a.checkInTime < b.checkInTime ? 1 : -1));
@@ -1346,9 +1412,39 @@ function receptionVisitorsHTML(canDelete) {
   <div class="panel"><div class="panel-head"><h2>Today's visitors (${todays.length})</h2></div>
     <div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Purpose</th><th>To meet</th><th>In</th><th>Out</th><th></th></tr></thead>
       <tbody>${todays.map((v) => `<tr><td>${esc(v.name)}</td><td>${esc(v.phone || "—")}</td><td class="wrap">${esc(v.purpose)}</td><td>${esc(v.personToMeet)}</td><td>${esc(v.checkInTime)}</td><td>${v.checkOutTime ? esc(v.checkOutTime) : `<span class="visitor-in">In building</span>`}</td><td style="white-space:nowrap;">${v.checkOutTime ? "—" : `<button class="btn sm outline" data-checkout="${v.id}">Check Out</button>`} ${canDelete ? `<button class="btn sm danger" data-delete-visitor="${v.id}">Delete</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="7" class="empty">No visitors yet today.</td></tr>`}</tbody>
-    </table></div></div>`;
+    </table></div></div>
+  <div class="panel">
+    <div class="panel-head"><h2>Visitor history</h2>
+      <div class="pill-filter">
+        <input type="date" id="vh-date" value="${App.visitorHistFilter.date}">
+        <input type="text" id="vh-q" placeholder="Search by name…" value="${esc(App.visitorHistFilter.q)}" style="width:180px;">
+        <button class="btn sm gold" id="vh-search-btn">Search</button>
+        <button class="btn sm outline" id="vh-clear-btn">Clear date</button>
+      </div>
+    </div>
+    <div class="table-wrap" id="vh-results"></div>
+  </div>`;
 }
-function bindReceptionVisitors() {
+function renderVisitorHistory(canDelete) {
+  const { date, q } = App.visitorHistFilter;
+  const query = q.trim().toLowerCase();
+  const rows = [...DB.visitors]
+    .filter((v) => !date || v.date === date)
+    .filter((v) => !query || v.name.toLowerCase().includes(query))
+    .sort((a, b) => (a.date === b.date ? (a.checkInTime < b.checkInTime ? 1 : -1) : (a.date < b.date ? 1 : -1)))
+    .slice(0, 200)
+    .map((v) => `<tr><td>${fmtDate(v.date)}</td><td>${esc(v.name)}</td><td>${esc(v.phone || "—")}</td><td class="wrap">${esc(v.purpose)}</td><td>${esc(v.personToMeet)}</td><td>${esc(v.checkInTime)}</td><td>${v.checkOutTime || "—"}</td><td>${canDelete ? `<button class="btn sm danger" data-delete-vh="${v.id}">Delete</button>` : "—"}</td></tr>`)
+    .join("");
+  $("#vh-results").innerHTML = `<table><thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Purpose</th><th>To meet</th><th>In</th><th>Out</th><th></th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="8" class="empty">No matching visitor records. ${date ? "" : "Pick a date or search a name to look further back."}</td></tr>`}</tbody></table>`;
+  $all("[data-delete-vh]", $("#vh-results")).forEach((btn) => btn.addEventListener("click", async () => {
+    if (confirm("Delete this visitor entry?")) { await DB.removeVisitor(btn.dataset.deleteVh); toast("Visitor entry deleted."); }
+  }));
+}
+function bindReceptionVisitors(canDelete) {
+  renderVisitorHistory(canDelete);
+  $("#vh-search-btn").addEventListener("click", () => { App.visitorHistFilter.date = $("#vh-date").value; App.visitorHistFilter.q = $("#vh-q").value; renderVisitorHistory(canDelete); });
+  $("#vh-clear-btn").addEventListener("click", () => { App.visitorHistFilter.date = ""; $("#vh-date").value = ""; renderVisitorHistory(canDelete); });
   $("#visitor-form").addEventListener("submit", async (e) => {
     e.preventDefault(); setBusy(e.target, true);
     try {
@@ -1369,9 +1465,11 @@ function bindReceptionVisitors() {
 
 function receptionFeesHTML(r) {
   const classOptions = `<option value="">All classes</option>` + DB.classesSorted().map((c) => `<option value="${c.id}">${esc(DB.classLabel(c.id))}</option>`).join("");
+  const distinctTerms = [...new Set(DB.fees.map((f) => f.term))].sort().reverse();
+  const termOptions = `<option value="">All terms / sessions</option>` + distinctTerms.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
   return `<div class="panel">
     <div class="panel-head"><h2>Fee status</h2>
-      <div class="pill-filter"><select id="rc-fee-class">${classOptions}</select><input type="text" id="rc-fee-q" placeholder="Search by name…" style="width:200px;"></div>
+      <div class="pill-filter"><select id="rc-fee-class">${classOptions}</select><select id="rc-fee-term">${termOptions}</select><input type="text" id="rc-fee-q" placeholder="Search by name…" style="width:200px;"></div>
     </div>
     <div class="table-wrap" id="rc-fee-results"></div>
   </div>
@@ -1379,10 +1477,12 @@ function receptionFeesHTML(r) {
 }
 function renderReceptionFeeResults() {
   const classId = $("#rc-fee-class").value;
+  const term = $("#rc-fee-term").value;
   const q = $("#rc-fee-q").value.trim().toLowerCase();
   const rows = DB.fees
     .map((f) => ({ f, s: DB.studentById(f.studentId) }))
     .filter(({ s }) => !classId || s?.classId === classId)
+    .filter(({ f }) => !term || f.term === term)
     .filter(({ s }) => !q || (s?.name || "").toLowerCase().includes(q))
     .sort((a, b) => (a.s?.name || "").localeCompare(b.s?.name || ""))
     .map(({ f, s }) => `<tr><td>${esc(s?.name || "—")}</td><td>${DB.classLabel(s?.classId)}</td><td>${esc(f.term)}</td><td>&#8377;${f.amount.toLocaleString("en-IN")}</td><td>${fmtDate(f.dueDate)}</td><td>${feeBadge(f.status)}</td><td>${f.status !== "paid" ? `<button class="btn sm outline" data-rc-mark-paid="${f.id}">Mark Paid</button>` : "—"}</td></tr>`)
@@ -1398,6 +1498,7 @@ function renderReceptionFeeResults() {
 function bindReceptionFees(r) {
   renderReceptionFeeResults();
   $("#rc-fee-class").addEventListener("change", renderReceptionFeeResults);
+  $("#rc-fee-term").addEventListener("change", renderReceptionFeeResults);
   $("#rc-fee-q").addEventListener("input", renderReceptionFeeResults);
   bindGatepassSection(r?.name || "Reception");
 }
@@ -1568,6 +1669,7 @@ function receptionReportsHTML() {
 document.addEventListener("DOMContentLoaded", () => {
   initLogin();
   setDates();
+  initEmailJS();
   // If Firebase already has a signed-in session (e.g. after a page refresh), resume it.
   watchAuth(async (user) => {
     if (user && !App.role) {

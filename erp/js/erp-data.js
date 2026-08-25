@@ -12,6 +12,7 @@ import {
   onSnapshot, getDocs, getDoc, query, where, writeBatch,
   signInWithEmailAndPassword, signOut, onAuthStateChanged, createLoginAccount, changeOwnPassword,
 } from "./firebase-init.js";
+import { sendEmailNotification } from "./email-notify.js";
 
 export { changeOwnPassword };
 
@@ -106,6 +107,17 @@ export const DB = {
     const ref = doc(collection(db, "notifications"));
     const now = new Date();
     await setDoc(ref, { recipientRole, recipientId, type, title, body, date: this.todayISO(), time: now.toTimeString().slice(0, 5), readBy: [], createdAt: Date.now() });
+
+    // Best-effort emailed copy for a specific person (not for "all" broadcasts —
+    // those still show up as in-app notifications for everyone, just not emailed,
+    // to keep this within a free email-sending plan's monthly limits).
+    if (recipientId !== "all") {
+      let person = null;
+      if (recipientRole === "parent") person = this.parentById(recipientId);
+      else if (recipientRole === "teacher") person = this.teacherById(recipientId);
+      else if (recipientRole === "reception") person = this.receptionistById(recipientId);
+      if (person?.email) sendEmailNotification(person.email, person.name, `New Horizon School: ${title}`, body);
+    }
   },
   notificationsFor(role, id) {
     return this.notifications
@@ -156,9 +168,10 @@ export const DB = {
       if (existing) {
         parentId = existing.id;
         if (parentPhone && !existing.phone) await updateDoc(doc(db, "parents", existing.id), { phone: parentPhone.trim() });
+        if (parentEmail && !existing.email) await updateDoc(doc(db, "parents", existing.id), { email: parentEmail.trim() });
       } else {
         const pRef = doc(collection(db, "parents"));
-        await setDoc(pRef, { name: cleanName, phone: (parentPhone || "").trim(), username: "" });
+        await setDoc(pRef, { name: cleanName, phone: (parentPhone || "").trim(), username: "", email: parentEmail ? parentEmail.trim() : "" });
         parentId = pRef.id;
         if (parentEmail && parentPassword) {
           const uid = await createLoginAccount(parentEmail.trim(), parentPassword);
@@ -173,7 +186,7 @@ export const DB = {
 
   async addTeacher(name, subject, phone, username, email, password) {
     const ref = doc(collection(db, "teachers"));
-    await setDoc(ref, { name, subject, phone, username, classIds: [] });
+    await setDoc(ref, { name, subject, phone, username, classIds: [], email: email ? email.trim() : "" });
     if (email && password) {
       const uid = await createLoginAccount(email.trim(), password);
       await setDoc(doc(db, "users", uid), { role: "teacher", refId: ref.id, name });
@@ -278,7 +291,7 @@ export const DB = {
   // ---- Reception staff (created by admin, same pattern as teachers) ----
   async addReceptionist(name, phone, email, password) {
     const ref = doc(collection(db, "receptionists"));
-    await setDoc(ref, { name, phone });
+    await setDoc(ref, { name, phone, email: email ? email.trim() : "" });
     if (email && password) {
       const uid = await createLoginAccount(email.trim(), password);
       await setDoc(doc(db, "users", uid), { role: "reception", refId: ref.id, name });
